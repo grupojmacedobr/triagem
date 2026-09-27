@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Triagem | Grupo J.Macedo</title>
+  <link rel="icon" type="image/png" href="img/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="login-page">
+    <!-- Lado esquerdo: logo -->
+    <section class="brand">
+      <img src="img/logo-triagem.jpg" alt="Triagem - Grupo J.Macedo Eletrônica" class="brand-logo" />
+    </section>
+
+    <!-- Lado direito: formulário -->
+    <section class="form-area">
+      <form id="form-login" class="login-form" novalidate>
+        <h1>Entrar</h1>
+        <p class="subtitle">Use seu login no padrão <strong>nome.sobrenome</strong></p>
+
+        <label for="login">LOGIN</label>
+        <input id="login" name="login" type="text" autocomplete="username"
+               placeholder="nome.sobrenome" required />
+
+        <label for="senha">SENHA</label>
+        <div class="password-wrap">
+          <input id="senha" name="senha" type="password" autocomplete="current-password"
+                 placeholder="••••••••" required />
+          <button type="button" id="toggle-senha" class="eye" aria-label="Mostrar senha">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+
+        <p id="mensagem" class="message" role="alert"></p>
+
+        <button type="submit" id="btn-entrar" class="btn-primary">Entrar</button>
+
+        <a href="#" id="esqueci" class="forgot">Esqueci minha senha</a>
+
+        <p class="footer-note">Acesso restrito. Em caso de dúvidas, procure o administrador do sistema.</p>
+      </form>
+    </section>
+  </main>
+
+  <!-- Biblioteca do Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>
