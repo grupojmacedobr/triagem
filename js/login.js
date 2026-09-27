@@ -54,7 +54,17 @@ form.addEventListener("submit", async (e) => {
   });
 
   if (error) {
-    mostrarMensagem("Login ou senha inválidos.");
+    const msg = (error.message || "").toLowerCase();
+    if (msg.includes("not confirmed")) {
+      mostrarMensagem("Usuário ainda não confirmado. Procure o administrador.");
+    } else if (msg.includes("invalid login")) {
+      mostrarMensagem("Login ou senha inválidos.");
+    } else if (msg.includes("api key") || msg.includes("fetch")) {
+      mostrarMensagem("Erro de conexão com o servidor. Tente novamente.");
+    } else {
+      mostrarMensagem("Erro ao entrar: " + error.message);
+    }
+    console.error("Erro de login:", error);
     btnEntrar.disabled = false;
     btnEntrar.textContent = "Entrar";
     return;
