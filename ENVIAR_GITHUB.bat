@@ -4,7 +4,7 @@ title Triagem - Enviar para o GitHub
 color 1F
 cd /d "%~dp0"
 
-set "REPO=https://github.com/grupojmacedobr/triagem.git"
+set "REPO=https://grupojmacedobr@github.com/grupojmacedobr/triagem.git"
 
 echo ================================================
 echo   TRIAGEM - GRUPO J.MACEDO
@@ -43,6 +43,8 @@ git branch -M main
 git remote add origin %REPO%
 
 :CONFIG
+git remote set-url origin %REPO%
+git config core.autocrlf true
 git config user.name >nul 2>nul || git config user.name "grupojmacedobr"
 git config user.email >nul 2>nul || git config user.email "grupojmacedobr@users.noreply.github.com"
 
