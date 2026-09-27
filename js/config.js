@@ -9,7 +9,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_jh0K2xgFQBfXqqG7xDtiQg_DSKAuZNM";
 
 // O login é "nome.sobrenome". O Supabase exige e-mail,
 // então o sistema completa automaticamente com este domínio:
-//   rafael.macedo  ->  rafael.macedo@triagem.jmacedo
-const DOMINIO_LOGIN = "triagem.jmacedo";
+//   rafael.macedo  ->  rafael.macedo@jmacedo.internal
+const DOMINIO_LOGIN = "jmacedo.internal";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

@@ -20,4 +20,4 @@ img/              -> logo e ícone
 
 ## Login
 Usuários entram no padrão `nome.sobrenome`. No Supabase, o usuário é cadastrado
-como `nome.sobrenome@triagem.jmacedo`.
+como `nome.sobrenome@jmacedo.internal`.
