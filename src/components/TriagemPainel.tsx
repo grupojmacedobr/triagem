@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Check, Copy, Info, Layers, Link2, Loader2, Search, Sparkles, Wrench } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Copy, Eraser, Info, Layers, Link2, Loader2, Search, Sparkles, Wrench } from "lucide-react";
 import { CATEGORIAS } from "@/lib/gspn";
 import type { ResultadoTriagem, NivelBusca, PecaSugerida } from "@/lib/triagem";
 
 type SugestaoModelo = { modelo: string; familia: string; categoria: string; qtd_os: number; qtd_entregues: number; qtd_reparadas: number };
+type SugestaoDefeito = { texto: string; qtd: number };
 
 const NOME_NIVEL: Record<NivelBusca, string> = { modelo: "mesmo modelo", familia: "mesma família", categoria: "mesma categoria" };
 const ORIGEM: Record<PecaSugerida["origem"], { rotulo: string; cor: string; dica: string }> = {
@@ -17,55 +18,140 @@ const ORIGEM: Record<PecaSugerida["origem"], { rotulo: string; cor: string; dica
 const cartao = { background: "var(--surface)", borderColor: "var(--line)" } as const;
 const pct = (v: number) => `${v.toFixed(v >= 10 ? 0 : 1).replace(".", ",")}%`;
 const num = (v: number) => v.toLocaleString("pt-BR");
+const campoClasse =
+  "w-full rounded-lg border px-4 py-2.5 text-sm outline-none focus:border-[var(--accent2)] focus:ring-1 focus:ring-[var(--accent2)] bg-[var(--surface2)] border-[var(--line)] text-[var(--ink)] placeholder:text-[var(--muted)]";
+const rotuloClasse = "text-xs font-medium uppercase tracking-wide";
 
-type Inicial = { modelo?: string; categoria?: string; defeito?: string; resultado?: ResultadoTriagem | null };
+// trecho do defeito que está sendo digitado agora (depois da última vírgula / ponto / quebra de linha)
+function trechoAtual(texto: string): { antes: string; atual: string } {
+  const m = texto.match(/^([\s\S]*[,;.\n]\s*)?([^,;.\n]*)$/);
+  return { antes: m?.[1] ?? "", atual: (m?.[2] ?? texto).trimStart() };
+}
+
+type Inicial = { modelo?: string; categorias?: string[]; defeito?: string; resultado?: ResultadoTriagem | null };
 
 export default function TriagemPainel({ inicial }: { inicial?: Inicial }) {
   const [modelo, setModelo] = useState(inicial?.modelo ?? "");
-  const [categoria, setCategoria] = useState(inicial?.categoria ?? "");
+  const [categorias, setCategorias] = useState<string[]>(inicial?.categorias ?? []);
   const [defeito, setDefeito] = useState(inicial?.defeito ?? "");
-  const [sugestoes, setSugestoes] = useState<SugestaoModelo[]>([]);
-  const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoTriagem | null>(inicial?.resultado ?? null);
   const [copiado, setCopiado] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+
+  // sugestões de SKU
+  const [sugModelos, setSugModelos] = useState<SugestaoModelo[]>([]);
+  const [abrirModelos, setAbrirModelos] = useState(false);
+  const [idxModelo, setIdxModelo] = useState(-1);
+  // sugestões de defeito
+  const [sugDefeitos, setSugDefeitos] = useState<SugestaoDefeito[]>([]);
+  const [abrirDefeitos, setAbrirDefeitos] = useState(false);
+  const [idxDefeito, setIdxDefeito] = useState(-1);
+  // caixa de categorias
+  const [abrirCategorias, setAbrirCategorias] = useState(false);
+
+  const timerModelo = useRef<ReturnType<typeof setTimeout>>();
+  const timerDefeito = useRef<ReturnType<typeof setTimeout>>();
+  const campoDefeito = useRef<HTMLTextAreaElement>(null);
+  const catParam = categorias.join(",");
 
   useEffect(() => {
-    clearTimeout(timer.current);
+    clearTimeout(timerModelo.current);
     const q = modelo.trim();
-    if (q.length < 3) {
-      setSugestoes([]);
-      return;
-    }
-    timer.current = setTimeout(async () => {
+    if (q.length < 1) return setSugModelos([]);
+    timerModelo.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/triagem/modelos?q=${encodeURIComponent(q)}`);
-        if (res.ok) setSugestoes(await res.json());
+        const res = await fetch(`/api/triagem/modelos?q=${encodeURIComponent(q)}&categorias=${catParam}`);
+        if (res.ok) {
+          setSugModelos(await res.json());
+          setIdxModelo(-1);
+        }
       } catch {
-        // sem sugestões, segue normal
+        // sem sugestões
       }
-    }, 250);
-  }, [modelo]);
+    }, 150);
+  }, [modelo, catParam]);
+
+  useEffect(() => {
+    clearTimeout(timerDefeito.current);
+    const { atual } = trechoAtual(defeito);
+    if (atual.trim().length < 2) return setSugDefeitos([]);
+    timerDefeito.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/triagem/defeitos?q=${encodeURIComponent(atual)}&categorias=${catParam}`);
+        if (res.ok) {
+          setSugDefeitos(await res.json());
+          setIdxDefeito(-1);
+        }
+      } catch {
+        // sem sugestões
+      }
+    }, 200);
+  }, [defeito, catParam]);
 
   function escolherModelo(s: SugestaoModelo) {
     setModelo(s.modelo);
-    if (s.categoria) setCategoria(s.categoria);
-    setMostrarSugestoes(false);
+    if (s.categoria && !categorias.includes(s.categoria)) setCategorias((c) => [...c, s.categoria]);
+    setAbrirModelos(false);
   }
 
-  async function analisar(e: React.FormEvent) {
-    e.preventDefault();
+  function escolherDefeito(s: SugestaoDefeito) {
+    const { antes } = trechoAtual(defeito);
+    const frase = s.texto.toLowerCase();
+    setDefeito(antes + (antes && !/\s$/.test(antes) ? " " : "") + frase);
+    setAbrirDefeitos(false);
+    campoDefeito.current?.focus();
+  }
+
+  function alternarCategoria(sigla: string) {
+    setCategorias((c) => (c.includes(sigla) ? c.filter((x) => x !== sigla) : [...c, sigla]));
+  }
+
+  function limpar() {
+    setModelo("");
+    setCategorias([]);
+    setDefeito("");
+    setResultado(null);
     setErro(null);
-    if (!categoria) return setErro("Escolha a categoria do produto.");
+    setSugModelos([]);
+    setSugDefeitos([]);
+  }
+
+  function teclas<T>(
+    e: React.KeyboardEvent,
+    lista: T[],
+    aberto: boolean,
+    idx: number,
+    setIdx: (n: number) => void,
+    escolher: (item: T) => void,
+    fechar: () => void
+  ) {
+    if (!aberto || lista.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setIdx(Math.min(lista.length - 1, idx + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setIdx(Math.max(-1, idx - 1));
+    } else if (e.key === "Enter" && idx >= 0) {
+      e.preventDefault();
+      escolher(lista[idx]);
+    } else if (e.key === "Escape") {
+      fechar();
+    }
+  }
+
+  async function analisar(e?: React.FormEvent) {
+    e?.preventDefault();
+    setErro(null);
+    if (categorias.length === 0) return setErro("Escolha pelo menos uma categoria.");
     if (!defeito.trim()) return setErro("Descreva o defeito.");
     setCarregando(true);
     try {
       const res = await fetch("/api/triagem/analisar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modelo, categoria, defeito }),
+        body: JSON.stringify({ modelo, categorias, defeito }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível analisar.");
@@ -87,109 +173,193 @@ export default function TriagemPainel({ inicial }: { inicial?: Inicial }) {
     }
   }
 
+  const nomesSelecionados = CATEGORIAS.filter((c) => categorias.includes(c.sigla));
+
   return (
     <div className="max-w-6xl">
       {/* ---------- formulário ---------- */}
       <form onSubmit={analisar} className="rounded-xl border p-5 mb-6" style={cartao}>
-        <div className="grid md:grid-cols-[1fr_auto] gap-4">
-          <div className="relative">
-            <label className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* modelo */}
+          <div className="relative md:w-72 shrink-0">
+            <label className={rotuloClasse} style={{ color: "var(--muted)" }}>
               Modelo (SKU)
             </label>
             <input
               value={modelo}
               onChange={(e) => {
                 setModelo(e.target.value.toUpperCase());
-                setMostrarSugestoes(true);
+                setAbrirModelos(true);
               }}
-              onFocus={() => setMostrarSugestoes(true)}
-              onBlur={() => setTimeout(() => setMostrarSugestoes(false), 150)}
+              onFocus={() => setAbrirModelos(true)}
+              onBlur={() => setTimeout(() => setAbrirModelos(false), 150)}
+              onKeyDown={(e) => teclas(e, sugModelos, abrirModelos, idxModelo, setIdxModelo, escolherModelo, () => setAbrirModelos(false))}
               placeholder="Ex: UN50CU7700GXZD"
-              className="mt-1.5 w-full rounded-lg border px-4 py-2.5 text-sm font-mono outline-none focus:border-[var(--accent2)] focus:ring-1 focus:ring-[var(--accent2)] bg-[var(--surface2)] border-[var(--line)] text-[var(--ink)] placeholder:text-[var(--muted)]"
+              autoComplete="off"
+              className={`mt-1.5 font-mono ${campoClasse}`}
             />
-            {mostrarSugestoes && sugestoes.length > 0 && (
-              <div className="absolute z-20 mt-1 w-full rounded-lg border shadow-2xl max-h-72 overflow-y-auto" style={cartao}>
-                {sugestoes.map((s) => (
+            {abrirModelos && sugModelos.length > 0 && (
+              <div className="absolute z-30 mt-1 w-[min(420px,calc(100vw-3rem))] rounded-lg border shadow-2xl max-h-80 overflow-y-auto" style={cartao}>
+                {sugModelos.map((s, i) => (
                   <button
                     type="button"
                     key={s.modelo}
                     onMouseDown={() => escolherModelo(s)}
                     className="w-full flex items-center justify-between gap-3 px-4 py-2 text-left text-sm hover:bg-[var(--surface2)]"
+                    style={i === idxModelo ? { background: "var(--surface2)" } : undefined}
                   >
                     <span className="font-mono" style={{ color: "var(--ink)" }}>
                       {s.modelo}
                     </span>
                     <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>
-                      {s.categoria} · {num(s.qtd_reparadas)} OS reparadas
+                      {s.categoria} · {num(s.qtd_reparadas)} reparadas
                     </span>
                   </button>
                 ))}
               </div>
             )}
             <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
-              Opcional, mas melhora muito o acerto do código da peça.
+              Opcional, mas melhora muito o acerto.
             </p>
           </div>
-        </div>
 
-        <div className="mt-4">
-          <p className="text-xs font-medium uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>
-            Categoria
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {CATEGORIAS.map((c) => {
-              const ativo = categoria === c.sigla;
-              return (
-                <button
-                  type="button"
-                  key={c.sigla}
-                  onClick={() => setCategoria(c.sigla)}
-                  className="rounded-full border px-3.5 py-1.5 text-xs font-medium transition"
-                  style={
-                    ativo
-                      ? { background: "var(--accent)", borderColor: "var(--accent)", color: "#fff" }
-                      : { borderColor: "var(--line)", color: "var(--muted)", background: "var(--surface2)" }
-                  }
-                >
-                  <strong>{c.sigla}</strong> · {c.nome}
-                </button>
-              );
-            })}
+          {/* categorias (várias) */}
+          <div className="relative flex-1 min-w-0">
+            <label className={rotuloClasse} style={{ color: "var(--muted)" }}>
+              Categoria <span className="normal-case font-normal">(uma ou mais)</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setAbrirCategorias((v) => !v)}
+              className={`mt-1.5 flex items-center gap-2 text-left min-h-[42px] ${campoClasse}`}
+            >
+              <span className="flex-1 flex flex-wrap gap-1.5">
+                {nomesSelecionados.length === 0 ? (
+                  <span style={{ color: "var(--muted)" }}>Selecione...</span>
+                ) : (
+                  nomesSelecionados.map((c) => (
+                    <span key={c.sigla} className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ background: "var(--accent)" }}>
+                      {c.sigla} · {c.nome}
+                    </span>
+                  ))
+                )}
+              </span>
+              <ChevronDown size={16} className={`shrink-0 transition-transform ${abrirCategorias ? "rotate-180" : ""}`} style={{ color: "var(--muted)" }} />
+            </button>
+            {abrirCategorias && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setAbrirCategorias(false)} />
+                <div className="absolute z-30 mt-1 w-full rounded-lg border shadow-2xl p-2" style={cartao}>
+                  <div className="grid sm:grid-cols-2 gap-0.5">
+                    {CATEGORIAS.map((c) => {
+                      const marcado = categorias.includes(c.sigla);
+                      return (
+                        <label
+                          key={c.sigla}
+                          className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm cursor-pointer hover:bg-[var(--surface2)]"
+                          style={{ color: "var(--ink)" }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={marcado}
+                            onChange={() => alternarCategoria(c.sigla)}
+                            className="w-4 h-4 accent-[var(--accent)]"
+                          />
+                          <strong className="w-9">{c.sigla}</strong>
+                          <span style={{ color: "var(--muted)" }}>{c.nome}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between border-t mt-2 pt-2 px-1" style={{ borderColor: "var(--line)" }}>
+                    <button type="button" onClick={() => setCategorias(CATEGORIAS.map((c) => c.sigla))} className="text-xs hover:underline" style={{ color: "var(--accent2)" }}>
+                      Marcar todas
+                    </button>
+                    <button type="button" onClick={() => setCategorias([])} className="text-xs hover:underline" style={{ color: "var(--muted)" }}>
+                      Desmarcar
+                    </button>
+                    <button type="button" onClick={() => setAbrirCategorias(false)} className="text-xs font-medium hover:underline" style={{ color: "var(--ink)" }}>
+                      OK
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="mt-4">
-          <label className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+        {/* defeito com sugestões */}
+        <div className="mt-4 relative">
+          <label className={rotuloClasse} style={{ color: "var(--muted)" }}>
             Descrição do defeito
           </label>
           <textarea
+            ref={campoDefeito}
             value={defeito}
-            onChange={(e) => setDefeito(e.target.value)}
+            onChange={(e) => {
+              setDefeito(e.target.value);
+              setAbrirDefeitos(true);
+            }}
+            onFocus={() => setAbrirDefeitos(true)}
+            onBlur={() => setTimeout(() => setAbrirDefeitos(false), 150)}
+            onKeyDown={(e) => teclas(e, sugDefeitos, abrirDefeitos, idxDefeito, setIdxDefeito, escolherDefeito, () => setAbrirDefeitos(false))}
             rows={3}
-            placeholder='Ex: "TV sem imagem, mas tem som" · "barulho ao centrifugar" · "não gela o freezer"'
-            className="mt-1.5 w-full rounded-lg border px-4 py-2.5 text-sm outline-none focus:border-[var(--accent2)] focus:ring-1 focus:ring-[var(--accent2)] bg-[var(--surface2)] border-[var(--line)] text-[var(--ink)] placeholder:text-[var(--muted)]"
+            placeholder='Digite livremente. Ex: "TV sem imagem, mas tem som" · "barulho ao centrifugar" · "não gela o freezer"'
+            className={`mt-1.5 ${campoClasse}`}
           />
+          {abrirDefeitos && sugDefeitos.length > 0 && (
+            <div className="absolute z-30 left-0 right-0 rounded-lg border shadow-2xl max-h-72 overflow-y-auto" style={cartao}>
+              <p className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+                Defeitos já cadastrados (clique para usar ou continue digitando)
+              </p>
+              {sugDefeitos.map((s, i) => (
+                <button
+                  type="button"
+                  key={s.texto}
+                  onMouseDown={() => escolherDefeito(s)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-2 text-left text-sm hover:bg-[var(--surface2)]"
+                  style={i === idxDefeito ? { background: "var(--surface2)" } : undefined}
+                >
+                  <span style={{ color: "var(--ink)" }}>{s.texto}</span>
+                  <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>
+                    {num(s.qtd)} OS
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
+            Pode misturar sugestões e texto livre, separando por vírgula. Cada palavra é analisada, com sinônimos.
+          </p>
         </div>
 
-        {erro && (
-          <p className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{erro}</p>
-        )}
+        {erro && <p className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{erro}</p>}
 
-        <button
-          type="submit"
-          disabled={carregando}
-          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent2)] disabled:opacity-60 text-white text-sm font-medium px-5 py-2.5 transition"
-          style={{ boxShadow: "0 0 30px var(--accent-glow)" }}
-        >
-          {carregando ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-          {carregando ? "Analisando..." : "Analisar defeito"}
-        </button>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="submit"
+            disabled={carregando}
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent2)] disabled:opacity-60 text-white text-sm font-medium px-5 py-2.5 transition"
+            style={{ boxShadow: "0 0 30px var(--accent-glow)" }}
+          >
+            {carregando ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+            {carregando ? "Analisando..." : "Analisar defeito"}
+          </button>
+          <button
+            type="button"
+            onClick={limpar}
+            disabled={carregando}
+            className="inline-flex items-center gap-2 rounded-lg border px-5 py-2.5 text-sm font-medium transition hover:border-[var(--accent2)] disabled:opacity-60"
+            style={{ borderColor: "var(--line)", color: "var(--ink)" }}
+          >
+            <Eraser size={16} />
+            Limpar
+          </button>
+        </div>
       </form>
 
       {/* ---------- resultado ---------- */}
-      {resultado && (
-        <Resultado r={resultado} copiar={copiar} copiado={copiado} />
-      )}
+      {resultado && <Resultado r={resultado} copiar={copiar} copiado={copiado} />}
     </div>
   );
 }

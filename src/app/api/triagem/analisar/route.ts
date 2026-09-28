@@ -14,12 +14,15 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const modelo = String(body?.modelo || "").trim().toUpperCase();
-  const categoria = String(body?.categoria || "").trim().toUpperCase();
   const defeito = String(body?.defeito || "").trim();
+  const siglas = new Set<string>(CATEGORIAS.map((c) => c.sigla));
+  const categorias: string[] = (Array.isArray(body?.categorias) ? body.categorias : [])
+    .map((c: unknown) => String(c).toUpperCase())
+    .filter((c: string) => siglas.has(c));
 
   if (!defeito) return NextResponse.json({ error: "Descreva o defeito." }, { status: 400 });
-  if (!CATEGORIAS.some((c) => c.sigla === categoria)) {
-    return NextResponse.json({ error: "Escolha a categoria do produto." }, { status: 400 });
+  if (categorias.length === 0) {
+    return NextResponse.json({ error: "Escolha pelo menos uma categoria." }, { status: 400 });
   }
 
   const termos = extrairTermos(defeito);
@@ -31,21 +34,20 @@ export async function POST(request: Request) {
   }
 
   const { data, error } = await supabase.rpc("triagem_buscar", {
-    p_categoria: categoria,
+    p_categorias: categorias,
     p_modelo: modelo,
     p_familia: familiaModelo(modelo),
     p_grupos: gruposParaBanco(termos),
   });
   if (error) {
     return NextResponse.json(
-      { error: `Erro na busca (${error.message}). Confira se o SQL 02_gspn.sql já foi rodado no Supabase.` },
+      { error: `Erro na busca (${error.message}). Confira se os SQLs 02 e 03 já foram rodados no Supabase.` },
       { status: 500 }
     );
   }
 
   const resultado = analisar(data as RespostaBanco, termos, modelo);
 
-  // completa os exemplos com o texto do defeito e o modelo
   const ids = resultado.exemplos.map((e) => e.os);
   if (ids.length) {
     const { data: detalhes } = await supabase.from("gspn_os").select("os, modelo, defeito, reparacao").in("os", ids);

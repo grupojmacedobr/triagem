@@ -69,6 +69,8 @@ export function extrairTermos(defeito: string): Termo[] {
   // "tem som", "mas tem imagem", "liga normal": isso FUNCIONA — não é defeito, não entra na busca
   const funciona: string[] = [];
   t = t.replace(/ tem ([a-z0-9]+)/g, (_, w: string) => { if (w !== "defeito" && w !== "problema") funciona.push(w); return " "; });
+  // "com som", "apenas com imagem"... também é o que FUNCIONA (mas "com oxidacao" continua sendo defeito)
+  t = t.replace(/ (?:apenas |mas |so )?com (som|audio|imagem|video|energia|sinal|wifi|internet)(?= )/g, (_, w: string) => { funciona.push(w); return " "; });
   const usados = new Set<number>();
   for (const v of VARIANTES_POR_TAMANHO) {
     if (t.includes(" " + v)) {

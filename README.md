@@ -14,7 +14,7 @@ Mesma base do Sistema Allied: **Next.js 14 + Supabase + Tailwind**, publicado na
 - Saída automática após 1 hora sem uso
 
 ## Triagem (módulo principal)
-Informe **modelo (SKU)**, **categoria** e o **defeito**. O sistema:
+Informe **modelo (SKU)** (sugestões desde a 1ª letra), **uma ou mais categorias** e o **defeito** (texto livre, com sugestões dos defeitos já cadastrados). O sistema:
 1. entende o defeito (sinônimos: "tela preta" = "sem imagem"; "tem som" = funciona, não é defeito);
 2. procura na Base GSPN as OS **Produto Entregue e reparadas** (com peça ou código de reparo A..)
    com defeito parecido — primeiro no mesmo modelo, depois na família, depois na categoria;
@@ -32,7 +32,7 @@ src/app/            páginas (login, dashboard, usuarios, trocar-senha) e APIs
 src/components/     peças da tela (menu, logo, formulários, popups)
 src/lib/            regras (cargos, cores, conexão com Supabase)
 src/middleware.ts   "porteiro": exige login e troca de senha
-supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02
+supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03
 public/             imagens (logo do login, ícone)
 ```
 
