@@ -1,0 +1,8 @@
+node_modules
+.next
+out
+.env
+.env.local
+.vercel
+*.log
+_versao_antiga

@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-tri-bg text-tri-silver font-sans;
+}
+
+/*
+  Cores da área interna do sistema (menu, topo, telas).
+  TEMA AZUL (padrão) — mesmo azul-escuro da tela de login.
+*/
+:root {
+  --canvas: #0a1830;
+  --surface: #0f2242;
+  --surface2: #132a52;
+  --ink: #e7edf7;
+  --muted: #93a5c4;
+  --line: #1f3b66;
+
+  /* cor de destaque (botões, links, logo) — muda pelo botão "Cor do sistema" */
+  --accent: #2f6fed;
+  --accent2: #5aa9ff;
+  --accent-glow: rgba(90, 169, 255, 0.25);
+}
+
+/* TEMA CLARO — tons de cinza com o azul J.Macedo nos destaques */
+html.light {
+  --canvas: #eef2f7;
+  --surface: #ffffff;
+  --surface2: #e6ebf3;
+  --ink: #16233d;
+  --muted: #5c6b85;
+  --line: #d3dae6;
+  --accent-glow: rgba(47, 111, 237, 0.18);
+}
+
+input[type="date"] {
+  color-scheme: dark;
+}
+html.light input[type="date"] {
+  color-scheme: light;
+}
+
+/* autopreenchimento do Chrome na tela de login (sempre escura) */
+.login-escuro input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0px 1000px #0f2242 inset;
+  -webkit-text-fill-color: #e7edf7;
+  caret-color: #e7edf7;
+}

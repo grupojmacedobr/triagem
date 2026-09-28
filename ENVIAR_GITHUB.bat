@@ -12,6 +12,18 @@ echo   Enviando o projeto para o GitHub...
 echo ================================================
 echo.
 
+REM ---------- 0. Guarda a versao antiga (HTML simples), sem apagar ----------
+if not exist "painel.html" goto SEM_VERSAO_ANTIGA
+echo Guardando a versao antiga na pasta _versao_antiga...
+if not exist "_versao_antiga" mkdir "_versao_antiga"
+if exist "index.html" move /y "index.html" "_versao_antiga\" >nul
+if exist "painel.html" move /y "painel.html" "_versao_antiga\" >nul
+if exist "css" move /y "css" "_versao_antiga\" >nul
+if exist "js" move /y "js" "_versao_antiga\" >nul
+if exist "img" move /y "img" "_versao_antiga\" >nul
+echo.
+:SEM_VERSAO_ANTIGA
+
 REM ---------- 1. Procura o Git ----------
 if exist "%ProgramFiles%\Git\cmd\git.exe" set "PATH=%ProgramFiles%\Git\cmd;%PATH%"
 if exist "%ProgramFiles(x86)%\Git\cmd\git.exe" set "PATH=%ProgramFiles(x86)%\Git\cmd;%PATH%"
