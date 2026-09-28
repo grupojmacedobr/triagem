@@ -6,3 +6,10 @@ out
 .vercel
 *.log
 _versao_antiga
+
+# Bases do GSPN têm dados de clientes: NUNCA vão para o GitHub
+BASE GSPN/
+*.xlsx
+*.xls
+*.xlsb
+*.csv

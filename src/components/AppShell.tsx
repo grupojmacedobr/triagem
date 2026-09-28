@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ClipboardCheck, Database, Home, LogOut, Menu, ShieldCheck, SlidersHorizontal, UserPlus, Users, X, ChevronDown } from "lucide-react";
+import { ClipboardCheck, Database, Home, LogOut, Menu, ShieldCheck, SlidersHorizontal, Tags, UserPlus, Users, X, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Perfil } from "@/lib/usuarios";
 import Avatar from "@/components/Avatar";
@@ -26,7 +26,10 @@ const GRUPOS: GrupoMenu[] = [
     id: "configuracoes",
     label: "Configurações",
     icone: SlidersHorizontal,
-    itens: [{ href: "/configuracoes/base-gspn", label: "Base GSPN", icone: Database }],
+    itens: [
+      { href: "/configuracoes/base-gspn", label: "Base GSPN", icone: Database },
+      { href: "/configuracoes/categorias", label: "Cadastro Categorias", icone: Tags },
+    ],
   },
   {
     id: "sistema",

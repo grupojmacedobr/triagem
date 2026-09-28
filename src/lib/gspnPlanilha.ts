@@ -112,7 +112,31 @@ export type RegistroOS = {
   reparado: boolean;
   pecas: PecaOS[];
   qtd_pecas: number;
+  /** "impressão digital" da linha: se não mudou desde a última importação, o servidor nem regrava */
+  hash: string;
 };
+
+/** Hash rápido (cyrb53) — só para comparar se a OS mudou. */
+function cyrb53(str: string): string {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+export function hashRegistro(r: Omit<RegistroOS, "hash">): string {
+  return cyrb53(
+    JSON.stringify([
+      r.os, r.asc_code, r.asc_nome, r.modelo, r.categoria_gspn, r.status, r.data_solicitacao, r.reparo_finalizado,
+      r.garantia, r.tipo_defeito, r.sintoma, r.defeito, r.reparacao, r.codigo_reparo, r.pecas,
+    ]),
+  );
+}
 
 export function linhaParaOS(linha: unknown[], mapa: MapaColunas): RegistroOS | null {
   const v = (campo: string) => linha[mapa.campos[campo]];
@@ -136,9 +160,10 @@ export function linhaParaOS(linha: unknown[], mapa: MapaColunas): RegistroOS | n
   const entregue = (status || "").toLowerCase() === "produto entregue";
   const codigoReparo = texto(v("codigo_reparo"))?.toUpperCase() ?? null;
 
-  return {
+  const registro: Omit<RegistroOS, "hash"> = {
     os,
-    asc_code: texto(v("asc_code"))?.replace(/\.0+$/, "") ?? null,
+    // código da unidade sem zeros à esquerda (Santos vem "0003197760")
+    asc_code: texto(v("asc_code"))?.replace(/\.0+$/, "").replace(/^0+(?=\d)/, "") ?? null,
     asc_nome: texto(v("asc_nome")),
     modelo,
     familia: familiaModelo(modelo),
@@ -161,4 +186,5 @@ export function linhaParaOS(linha: unknown[], mapa: MapaColunas): RegistroOS | n
     pecas,
     qtd_pecas: pecas.length,
   };
+  return { ...registro, hash: hashRegistro(registro) };
 }

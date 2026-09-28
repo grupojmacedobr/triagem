@@ -30,7 +30,14 @@ function trechoAtual(texto: string): { antes: string; atual: string } {
 
 type Inicial = { modelo?: string; categorias?: string[]; defeito?: string; resultado?: ResultadoTriagem | null };
 
-export default function TriagemPainel({ inicial }: { inicial?: Inicial }) {
+export default function TriagemPainel({
+  inicial,
+  listaCategorias = CATEGORIAS,
+}: {
+  inicial?: Inicial;
+  /** categorias cadastradas no banco (Configurações > Cadastro Categorias) */
+  listaCategorias?: { sigla: string; nome: string }[];
+}) {
   const [modelo, setModelo] = useState(inicial?.modelo ?? "");
   const [categorias, setCategorias] = useState<string[]>(inicial?.categorias ?? []);
   const [defeito, setDefeito] = useState(inicial?.defeito ?? "");
@@ -173,7 +180,7 @@ export default function TriagemPainel({ inicial }: { inicial?: Inicial }) {
     }
   }
 
-  const nomesSelecionados = CATEGORIAS.filter((c) => categorias.includes(c.sigla));
+  const nomesSelecionados = listaCategorias.filter((c) => categorias.includes(c.sigla));
 
   return (
     <div className="max-w-6xl">
@@ -251,7 +258,7 @@ export default function TriagemPainel({ inicial }: { inicial?: Inicial }) {
                 <div className="fixed inset-0 z-20" onClick={() => setAbrirCategorias(false)} />
                 <div className="absolute z-30 mt-1 w-full rounded-lg border shadow-2xl p-2" style={cartao}>
                   <div className="grid sm:grid-cols-2 gap-0.5">
-                    {CATEGORIAS.map((c) => {
+                    {listaCategorias.map((c) => {
                       const marcado = categorias.includes(c.sigla);
                       return (
                         <label
@@ -272,7 +279,7 @@ export default function TriagemPainel({ inicial }: { inicial?: Inicial }) {
                     })}
                   </div>
                   <div className="flex justify-between border-t mt-2 pt-2 px-1" style={{ borderColor: "var(--line)" }}>
-                    <button type="button" onClick={() => setCategorias(CATEGORIAS.map((c) => c.sigla))} className="text-xs hover:underline" style={{ color: "var(--accent2)" }}>
+                    <button type="button" onClick={() => setCategorias(listaCategorias.map((c) => c.sigla))} className="text-xs hover:underline" style={{ color: "var(--accent2)" }}>
                       Marcar todas
                     </button>
                     <button type="button" onClick={() => setCategorias([])} className="text-xs hover:underline" style={{ color: "var(--muted)" }}>

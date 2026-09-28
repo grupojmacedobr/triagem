@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Database } from "lucide-react";
+import { Database, Tags } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { carregarPerfil } from "@/lib/perfil";
 
@@ -11,6 +11,14 @@ const TILES = [
     icone: Database,
     cor: "#2563eb",
     clara: "#60a5fa",
+  },
+  {
+    href: "/configuracoes/categorias",
+    titulo: "Cadastro Categorias",
+    descricao: "Dizer a categoria dos modelos (ex.: tudo que começa com WF é Lava e Seca) e acompanhar o que ainda está em Outros.",
+    icone: Tags,
+    cor: "#7c3aed",
+    clara: "#a78bfa",
   },
 ];
 

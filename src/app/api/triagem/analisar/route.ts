@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { familiaModelo, CATEGORIAS } from "@/lib/gspn";
+import { familiaModelo } from "@/lib/gspn";
 import { analisar, extrairTermos, gruposParaBanco, termosDeBusca, type RespostaBanco } from "@/lib/triagem";
 
 export const maxDuration = 30;
@@ -15,10 +15,11 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const modelo = String(body?.modelo || "").trim().toUpperCase();
   const defeito = String(body?.defeito || "").trim();
-  const siglas = new Set<string>(CATEGORIAS.map((c) => c.sigla));
+  // siglas vêm da tabela "categorias" (Cadastro Categorias); aqui só confere o formato
   const categorias: string[] = (Array.isArray(body?.categorias) ? body.categorias : [])
     .map((c: unknown) => String(c).toUpperCase())
-    .filter((c: string) => siglas.has(c));
+    .filter((c: string) => /^[A-Z0-9]{2,6}$/.test(c))
+    .slice(0, 30);
 
   if (!defeito) return NextResponse.json({ error: "Descreva o defeito." }, { status: 400 });
   if (categorias.length === 0) {

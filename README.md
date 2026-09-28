@@ -24,6 +24,12 @@ Teste com 400 OS reais (peça escondida): peça certa em 1º lugar 50%, no top 3
 tipo de peça certo no top 3 85%.
 
 Base GSPN: **Configurações > Base GSPN** (planilha padrão de exportação do GSPN, .xlsx).
+- Pode escolher várias planilhas (várias lojas) de uma vez; ficam na pasta `BASE GSPN` (fora do GitHub).
+- Envio em partes de 250 OS, uma por vez, com pausa e nova tentativa automática (cuida do plano gratuito).
+- OS que não mudaram são puladas (coluna `hash`); ao final o sistema reaprende as categorias.
+
+Categorias: **Configurações > Cadastro Categorias**. Ordem de decisão: regra "modelo começa com" >
+coluna BH do GSPN > aprendido (mesmo modelo / família / começo do modelo) > Outros.
 Dicionário de sinônimos: `src/lib/triagem.ts` (lista CONCEITOS).
 
 ## Estrutura
@@ -32,7 +38,7 @@ src/app/            páginas (login, dashboard, usuarios, trocar-senha) e APIs
 src/components/     peças da tela (menu, logo, formulários, popups)
 src/lib/            regras (cargos, cores, conexão com Supabase)
 src/middleware.ts   "porteiro": exige login e troca de senha
-supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03
+supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03, 04
 public/             imagens (logo do login, ícone)
 ```
 
