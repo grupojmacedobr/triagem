@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { ClipboardCheck, Palette, Users } from "lucide-react";
+import { ClipboardCheck, Database, Palette, Users } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { carregarPerfil } from "@/lib/perfil";
 
-const CARDS = [
+const CARDS: { href: string | null; label: string; descricao: string; icone: typeof Users; cor: string; corClara: string }[] = [
   {
-    href: null,
+    href: "/triagem",
     label: "Triagem",
-    descricao: "Módulo principal do sistema — em construção. Aqui vai ficar o fluxo de triagem.",
+    descricao: "Informe o modelo, a categoria e o defeito: o sistema mostra as peças mais usadas em reparos parecidos.",
     icone: ClipboardCheck,
     cor: "#2563eb",
     corClara: "#60a5fa",
@@ -19,6 +19,14 @@ const CARDS = [
     icone: Users,
     cor: "#059669",
     corClara: "#34d399",
+  },
+  {
+    href: "/configuracoes/base-gspn",
+    label: "Base GSPN",
+    descricao: "Subir a planilha GSPN que abastece a Triagem com o histórico de reparos.",
+    icone: Database,
+    cor: "#0891b2",
+    corClara: "#22d3ee",
   },
   {
     href: null,

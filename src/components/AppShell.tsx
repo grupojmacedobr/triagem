@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ClipboardCheck, Home, LogOut, Menu, Settings, UserPlus, Users, X, ChevronDown } from "lucide-react";
+import { ClipboardCheck, Database, Home, LogOut, Menu, ShieldCheck, SlidersHorizontal, UserPlus, Users, X, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Perfil } from "@/lib/usuarios";
 import Avatar from "@/components/Avatar";
@@ -16,12 +16,27 @@ type ItemMenu = { href: string; label: string; icone: typeof Home; emBreve?: boo
 
 const ITENS_PRINCIPAIS: ItemMenu[] = [
   { href: "/dashboard", label: "Início", icone: Home },
-  { href: "/triagem", label: "Triagem", icone: ClipboardCheck, emBreve: true },
+  { href: "/triagem", label: "Triagem", icone: ClipboardCheck },
 ];
 
-const ITENS_SISTEMA: ItemMenu[] = [
-  { href: "/usuarios", label: "Usuários", icone: Users },
-  { href: "/usuarios/novo", label: "Novo usuário", icone: UserPlus },
+type GrupoMenu = { id: string; label: string; icone: typeof Home; itens: ItemMenu[] };
+
+const GRUPOS: GrupoMenu[] = [
+  {
+    id: "configuracoes",
+    label: "Configurações",
+    icone: SlidersHorizontal,
+    itens: [{ href: "/configuracoes/base-gspn", label: "Base GSPN", icone: Database }],
+  },
+  {
+    id: "sistema",
+    label: "Sistema",
+    icone: ShieldCheck,
+    itens: [
+      { href: "/usuarios", label: "Usuários", icone: Users },
+      { href: "/usuarios/novo", label: "Novo usuário", icone: UserPlus },
+    ],
+  },
 ];
 
 const ESTILO_ATIVO = {
@@ -43,8 +58,8 @@ export default function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [menuAberto, setMenuAberto] = useState(false);
-  const [sistemaAberto, setSistemaAberto] = useState(
-    () => pathname?.startsWith("/usuarios") ?? false
+  const [abertos, setAbertos] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(GRUPOS.map((g) => [g.id, g.itens.some((i) => pathname?.startsWith(i.href))]))
   );
 
   async function sair() {
@@ -126,25 +141,31 @@ export default function AppShell({
             <LinkMenu key={item.href} item={item} />
           ))}
 
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={() => setSistemaAberto((v) => !v)}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition hover:bg-[var(--surface2)]"
-              style={{ color: "var(--muted)" }}
-            >
-              <Settings size={17} />
-              Sistema
-              <ChevronDown size={15} className={`ml-auto transition-transform ${sistemaAberto ? "rotate-180" : ""}`} />
-            </button>
-            {sistemaAberto && (
-              <div className="mt-1 ml-4 pl-3 border-l space-y-1" style={{ borderColor: "var(--line)" }}>
-                {ITENS_SISTEMA.map((item) => (
-                  <LinkMenu key={item.href} item={item} sub />
-                ))}
+          {GRUPOS.map((g) => {
+            const Icone = g.icone;
+            const aberto = abertos[g.id];
+            return (
+              <div key={g.id} className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setAbertos((a) => ({ ...a, [g.id]: !a[g.id] }))}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition hover:bg-[var(--surface2)]"
+                  style={{ color: "var(--muted)" }}
+                >
+                  <Icone size={17} />
+                  {g.label}
+                  <ChevronDown size={15} className={`ml-auto transition-transform ${aberto ? "rotate-180" : ""}`} />
+                </button>
+                {aberto && (
+                  <div className="mt-1 ml-4 pl-3 border-l space-y-1" style={{ borderColor: "var(--line)" }}>
+                    {g.itens.map((item) => (
+                      <LinkMenu key={item.href} item={item} sub />
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })}
         </nav>
 
         <div className="p-3 border-t space-y-1" style={{ borderColor: "var(--line)" }}>
