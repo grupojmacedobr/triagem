@@ -21,6 +21,15 @@ export async function POST(request: Request) {
     .filter((c: string) => /^[A-Z0-9]{2,6}$/.test(c))
     .slice(0, 30);
 
+  // garantia (coluna AL): LP = em garantia, OW = fora. As duas marcadas = sem filtro.
+  const garantias: string[] = (Array.isArray(body?.garantias) ? body.garantias : [])
+    .map((g: unknown) => String(g).toUpperCase())
+    .filter((g: string) => g === "LP" || g === "OW");
+  if (Array.isArray(body?.garantias) && garantias.length === 0) {
+    return NextResponse.json({ error: "Marque pelo menos uma opção de garantia (LP ou OW)." }, { status: 400 });
+  }
+  const filtroGarantia = garantias.length === 1 ? garantias : null;
+
   if (!defeito) return NextResponse.json({ error: "Descreva o defeito." }, { status: 400 });
   if (categorias.length === 0) {
     return NextResponse.json({ error: "Escolha pelo menos uma categoria." }, { status: 400 });
@@ -39,15 +48,18 @@ export async function POST(request: Request) {
     p_modelo: modelo,
     p_familia: familiaModelo(modelo),
     p_grupos: gruposParaBanco(termos),
+    ...(filtroGarantia ? { p_garantias: filtroGarantia } : {}),
   });
   if (error) {
     return NextResponse.json(
-      { error: `Erro na busca (${error.message}). Confira se os SQLs 02 e 03 já foram rodados no Supabase.` },
+      { error: `Erro na busca (${error.message}). Confira se os SQLs 02, 03 e 05 já foram rodados no Supabase.` },
       { status: 500 }
     );
   }
 
-  const resultado = analisar(data as RespostaBanco, termos, modelo);
+  const resultado = analisar(data as RespostaBanco, termos, modelo, undefined, categorias.length === 1 ? categorias[0] : "");
+
+  resultado.garantias = filtroGarantia ?? ["LP", "OW"];
 
   const ids = resultado.exemplos.map((e) => e.os);
   if (ids.length) {

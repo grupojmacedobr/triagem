@@ -28,7 +28,12 @@ function trechoAtual(texto: string): { antes: string; atual: string } {
   return { antes: m?.[1] ?? "", atual: (m?.[2] ?? texto).trimStart() };
 }
 
-type Inicial = { modelo?: string; categorias?: string[]; defeito?: string; resultado?: ResultadoTriagem | null };
+type Inicial = { modelo?: string; categorias?: string[]; defeito?: string; garantias?: string[]; resultado?: ResultadoTriagem | null };
+
+const GARANTIAS = [
+  { sigla: "LP", nome: "Em garantia" },
+  { sigla: "OW", nome: "Fora de garantia" },
+];
 
 export default function TriagemPainel({
   inicial,
@@ -41,6 +46,8 @@ export default function TriagemPainel({
   const [modelo, setModelo] = useState(inicial?.modelo ?? "");
   const [categorias, setCategorias] = useState<string[]>(inicial?.categorias ?? []);
   const [defeito, setDefeito] = useState(inicial?.defeito ?? "");
+  // garantia (coluna AL): LP = em garantia, OW = fora de garantia. As duas = todas.
+  const [garantias, setGarantias] = useState<string[]>(inicial?.garantias ?? ["LP", "OW"]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoTriagem | null>(inicial?.resultado ?? null);
@@ -118,6 +125,7 @@ export default function TriagemPainel({
     setModelo("");
     setCategorias([]);
     setDefeito("");
+    setGarantias(["LP", "OW"]);
     setResultado(null);
     setErro(null);
     setSugModelos([]);
@@ -158,7 +166,7 @@ export default function TriagemPainel({
       const res = await fetch("/api/triagem/analisar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modelo, categorias, defeito }),
+        body: JSON.stringify({ modelo, categorias, defeito, garantias }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível analisar.");
@@ -293,6 +301,41 @@ export default function TriagemPainel({
               </>
             )}
           </div>
+
+          {/* garantia */}
+          <div className="shrink-0">
+            <label className={rotuloClasse} style={{ color: "var(--muted)" }}>
+              Garantia
+            </label>
+            <div className="mt-1.5 grid grid-cols-2 md:flex gap-2">
+              {GARANTIAS.map((g) => {
+                const ativo = garantias.includes(g.sigla);
+                return (
+                  <button
+                    key={g.sigla}
+                    type="button"
+                    aria-pressed={ativo}
+                    title={ativo && garantias.length === 1 ? "Pelo menos uma opção precisa ficar marcada" : undefined}
+                    onClick={() =>
+                      setGarantias((atual) =>
+                        atual.includes(g.sigla) ? (atual.length === 1 ? atual : atual.filter((x) => x !== g.sigla)) : [...atual, g.sigla],
+                      )
+                    }
+                    className="flex items-center gap-2 rounded-lg border px-3 py-1.5 min-h-[42px] text-sm leading-tight text-left transition md:whitespace-nowrap"
+                    style={
+                      ativo
+                        ? { background: "var(--accent)", borderColor: "var(--accent)", color: "#fff" }
+                        : { background: "var(--surface2)", borderColor: "var(--line)", color: "var(--muted)" }
+                    }
+                  >
+                    {ativo ? <Check size={14} className="shrink-0" /> : <span className="w-3.5 shrink-0" />}
+                    <strong>{g.sigla}</strong>
+                    <span className={ativo ? "opacity-90" : ""}>{g.nome}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* defeito com sugestões */}
@@ -377,7 +420,7 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
     <div className="space-y-6">
       {/* conjunto de peças mais provável — primeira coisa que o triador vê */}
       {(r.kits ?? []).length > 0 && r.kitNivel && (
-        <KitSolucao kits={r.kits} nivel={r.kitNivel} base={r.kitBase} familia={r.familia} copiar={copiar} copiado={copiado} />
+        <KitSolucao kits={r.kits} nivel={r.kitNivel} base={r.kitBase} familia={r.familia} garantias={r.garantias} copiar={copiar} copiado={copiado} />
       )}
 
       {/* como entendi */}
@@ -425,7 +468,12 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
           <Info size={12} className="shrink-0 mt-0.5" />
           <span>
             Entram no cálculo só OS com status <strong>Produto Entregue</strong> e reparo realizado (com peça ou código de
-            reparo A..) — aparelhos devolvidos sem conserto ficam de fora. Tipos de peça calculados com {num(r.baseTipo)} OS
+            reparo A..) — aparelhos devolvidos sem conserto ficam de fora.{" "}
+            {r.garantias && r.garantias.length === 1 && (
+              <strong style={{ color: "var(--ink)" }}>
+                Somente OS {r.garantias[0] === "LP" ? "em garantia (LP)" : "fora de garantia (OW)"}.{" "}
+              </strong>
+            )} Tipos de peça calculados com {num(r.baseTipo)} OS
             da {NOME_NIVEL[r.nivelTipo]}
             {r.familia ? ` (família ${r.familia})` : ""}.
           </span>
@@ -484,8 +532,14 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
                           </button>
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-medium" style={{ color: "var(--ink)" }}>{p.tipo}</p>
-                          <p className="text-[11px]" style={{ color: "var(--muted)" }}>{p.descricao}</p>
+                          <p
+                            className="font-medium cursor-help underline decoration-dotted decoration-1 underline-offset-4"
+                            style={{ color: "var(--ink)", textDecorationColor: "var(--line)" }}
+                            title={`Descrição no GSPN: ${p.descricao}`}
+                          >
+                            {p.nome || p.tipo}
+                          </p>
+                          <p className="text-[11px]" style={{ color: "var(--muted)" }}>{p.tipo}</p>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -554,10 +608,12 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
                 <div className="space-y-2">
                   {r.combinacoes.map((c) => (
                     <div key={c.codigos.join("+")} className="flex items-center justify-between text-sm rounded-lg px-3 py-2" style={{ background: "var(--surface2)" }}>
-                      <span className="font-mono text-xs" style={{ color: "var(--ink)" }}>
-                        {c.codigos[0]} + {c.codigos[1]}
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <PecaChip codigo={c.codigos[0]} nome={c.nomes?.[0]} descricao={c.descricoes?.[0]} copiar={copiar} copiado={copiado} />
+                        <span style={{ color: "var(--muted)" }}>+</span>
+                        <PecaChip codigo={c.codigos[1]} nome={c.nomes?.[1]} descricao={c.descricoes?.[1]} copiar={copiar} copiado={copiado} />
                       </span>
-                      <span className="text-xs" style={{ color: "var(--muted)" }}>{num(c.os)} OS</span>
+                      <span className="text-xs whitespace-nowrap pl-2" style={{ color: "var(--muted)" }}>{num(c.os)} OS</span>
                     </div>
                   ))}
                 </div>
@@ -571,7 +627,18 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
               <p className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
                 OS parecidas usadas no cálculo (exemplos)
               </p>
+              {r.exemplos.length > 0 && r.exemplos.every((e) => e.nivel === "modelo") && (
+                <p className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>
+                  Somente OS do mesmo modelo: <span className="font-mono">{r.exemplos[0].modelo}</span>
+                </p>
+              )}
             </div>
+            {r.exemplos.length === 0 && (
+              <p className="px-5 py-6 text-sm" style={{ color: "var(--muted)" }}>
+                Nenhuma OS deste modelo exato com esse defeito. As sugestões acima usam a família / categoria.
+              </p>
+            )}
+            {r.exemplos.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[860px]">
                 <thead>
@@ -594,13 +661,22 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
                       <td className="px-4 py-2.5 text-xs" style={{ color: "var(--ink)" }}>{e.defeito}</td>
                       <td className="px-4 py-2.5 text-xs" style={{ color: "var(--muted)" }}>{e.reparacao || "—"}</td>
                       <td className="px-4 py-2.5 text-xs" style={{ color: "var(--muted)" }}>
-                        {e.pecas.length ? e.pecas.map((p) => `${p.c} (${p.t})`).join(", ") : "sem peça"}
+                        {e.pecas.length ? (
+                          <span className="flex flex-wrap gap-1">
+                            {e.pecas.map((p, i) => (
+                              <PecaChip key={p.c + i} codigo={p.c} nome={p.n || p.t} descricao={p.d} copiar={copiar} copiado={copiado} />
+                            ))}
+                          </span>
+                        ) : (
+                          "sem peça"
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            )}
           </div>
 
           <p className="text-[11px] flex items-start gap-1.5" style={{ color: "var(--muted)" }}>
@@ -636,10 +712,12 @@ function KitSolucao({
   nivel,
   base,
   familia,
+  garantias,
   copiar,
   copiado,
 }: {
   kits: KitPecas[];
+  garantias?: string[];
   nivel: NivelBusca;
   base: number;
   familia: string;
@@ -649,26 +727,33 @@ function KitSolucao({
   const [principal, ...outros] = kits;
   const codigosPrincipal = [...principal.pecas, ...principal.acompanham].map((p) => p.codigo).filter(Boolean).join(" ");
 
-  const itens = (k: KitPecas, detalhe = false) =>
+  const itens = (k: KitPecas, destaque = false) =>
     k.pecas.length === 0 ? (
       <span className="text-sm font-medium" style={{ color: "var(--ink)" }}>
         Reparo sem troca de peça (ajuste, limpeza ou atualização)
       </span>
     ) : (
-      k.pecas.map((p) => (
-        <span
-          key={p.codigo || p.tipo}
-          className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs"
-          style={{ borderColor: "var(--line)", background: "var(--surface)" }}
-          title={p.descricao || p.tipo}
-        >
-          {p.codigo && <span className="font-mono font-semibold" style={{ color: "var(--ink)" }}>{p.codigo}</span>}
-          <span style={{ color: p.codigo ? "var(--muted)" : "var(--ink)" }}>
-            {p.tipo}
-            {detalhe && p.descricao && <span className="block text-[10px] opacity-80 max-w-[240px] truncate">{p.descricao}</span>}
+      k.pecas.map((p) =>
+        p.codigo ? (
+          <PecaChip
+            key={p.codigo}
+            codigo={p.codigo}
+            nome={p.nome}
+            descricao={p.descricao}
+            copiar={copiar}
+            copiado={copiado}
+            grande={destaque}
+          />
+        ) : (
+          <span
+            key={p.tipo}
+            className="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs"
+            style={{ borderColor: "var(--line)", background: "var(--surface)", color: "var(--ink)" }}
+          >
+            {p.nome || p.tipo}
           </span>
-        </span>
-      ))
+        ),
+      )
     );
 
   return (
@@ -682,7 +767,8 @@ function KitSolucao({
         </p>
         <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
           Em {num(base)} OS parecidas {NIVEL_KIT[nivel]}
-          {nivel === "familia" && familia ? ` (${familia})` : ""}, entregues e reparadas, o conserto mais comum foi com
+          {nivel === "familia" && familia ? ` (${familia})` : ""}
+          {garantias && garantias.length === 1 ? (garantias[0] === "LP" ? " em garantia" : " fora de garantia") : ""}, entregues e reparadas, o conserto mais comum foi com
           estas peças juntas:
         </p>
 
@@ -707,7 +793,7 @@ function KitSolucao({
             {principal.acompanham.length > 0 && (
               <p className="text-[11px] mt-2" style={{ color: "var(--muted)" }}>
                 Costuma ir junto:{" "}
-                {principal.acompanham.map((a) => (a.codigo ? `${a.codigo} (${a.tipo})` : a.tipo)).join(", ")}
+                {principal.acompanham.map((a) => (a.codigo ? `${a.nome || a.tipo} (${a.codigo})` : a.nome || a.tipo)).join(", ")}
               </p>
             )}
             {principal.porTipo && (
@@ -724,7 +810,7 @@ function KitSolucao({
               style={{ borderColor: "var(--line)", color: "var(--ink)" }}
             >
               {copiado === codigosPrincipal ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-              Copiar códigos
+              Copiar todos
             </button>
           )}
         </div>
@@ -753,5 +839,51 @@ function KitSolucao({
         </div>
       )}
     </div>
+  );
+}
+
+/** Uma peça: part number (com botão de copiar) + nome traduzido. Passando o mouse mostra a descrição do GSPN. */
+function PecaChip({
+  codigo,
+  nome,
+  descricao,
+  copiar,
+  copiado,
+  grande = false,
+}: {
+  codigo: string;
+  nome?: string;
+  descricao?: string;
+  copiar: (t: string) => void;
+  copiado: string | null;
+  grande?: boolean;
+}) {
+  const ok = copiado === codigo;
+  return (
+    <span
+      className={`inline-flex items-stretch max-w-full rounded-lg border overflow-hidden ${grande ? "text-sm" : "text-xs"}`}
+      style={{ borderColor: "var(--line)", background: "var(--surface)" }}
+    >
+      <button
+        type="button"
+        onClick={() => copiar(codigo)}
+        title={`Copiar ${codigo}`}
+        aria-label={`Copiar part number ${codigo}`}
+        className={`inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap font-mono font-semibold border-r hover:bg-[var(--surface2)] transition ${grande ? "px-2.5 py-1.5" : "px-2 py-1"}`}
+        style={{ color: "var(--ink)", borderColor: "var(--line)" }}
+      >
+        {codigo}
+        {ok ? <Check size={grande ? 14 : 12} className="text-emerald-500" /> : <Copy size={grande ? 14 : 12} style={{ color: "var(--muted)" }} />}
+      </button>
+      {nome && (
+        <span
+          className={`inline-flex items-center min-w-0 cursor-help ${grande ? "px-2.5 py-1.5 font-medium" : "px-2 py-1"}`}
+          style={{ color: grande ? "var(--ink)" : "var(--muted)" }}
+          title={descricao ? `Descrição no GSPN: ${descricao}` : undefined}
+        >
+          {nome}
+        </span>
+      )}
+    </span>
   );
 }

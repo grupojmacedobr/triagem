@@ -31,6 +31,8 @@ Base GSPN: **Configurações > Base GSPN** (planilha padrão de exportação do 
 Categorias: **Configurações > Cadastro Categorias**. Ordem de decisão: regra "modelo começa com" >
 coluna BH do GSPN > aprendido (mesmo modelo / família / começo do modelo) > Outros.
 Dicionário de sinônimos: `src/lib/triagem.ts` (lista CONCEITOS).
+Tradução dos nomes das peças: `src/lib/pecas.ts` (lista REGRAS, feita com todas as descrições da base).
+Filtro de garantia na Triagem: coluna AL (LP = em garantia, OW = fora de garantia).
 
 ## Estrutura
 ```
@@ -38,7 +40,7 @@ src/app/            páginas (login, dashboard, usuarios, trocar-senha) e APIs
 src/components/     peças da tela (menu, logo, formulários, popups)
 src/lib/            regras (cargos, cores, conexão com Supabase)
 src/middleware.ts   "porteiro": exige login e troca de senha
-supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03, 04
+supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03, 04, 05
 public/             imagens (logo do login, ícone)
 ```
 
