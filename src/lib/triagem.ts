@@ -132,8 +132,67 @@ export type ResultadoTriagem = {
   tipos: { tipo: string; os: number; percentual: number }[];
   pecas: PecaSugerida[];
   combinacoes: { codigos: [string, string]; os: number }[];
+  /** conjuntos completos de peças que resolveram OS parecidas (o mais comum primeiro) */
+  kits: KitPecas[];
+  kitNivel: NivelBusca | null;
+  kitBase: number; // OS parecidas usadas para montar os conjuntos
   exemplos: { os: string; modelo?: string; defeito?: string; reparacao?: string; pecas: PecaOS[]; nivel: NivelBusca }[];
 };
+
+export type KitPecas = {
+  /** peças do conjunto (vazio = reparo sem troca de peça); no nível categoria, só o tipo */
+  pecas: { codigo: string; descricao: string; tipo: string }[];
+  /** itens pequenos que costumam ir junto (fita, parafuso, etiqueta) */
+  acompanham: { codigo: string; descricao: string; tipo: string }[];
+  os: number;
+  percentual: number;
+  exemplos: string[];
+  porTipo: boolean; // true = conjunto por tipo de peça (quando não há histórico do modelo/família)
+};
+
+/** Itens de consumo que não mudam o "conserto" (não entram na chave do conjunto). */
+const TIPOS_CONSUMO = new Set(["Fita Adesiva", "Parafuso", "Parafuso/Porca/Arruela", "Etiqueta/Adesivo"]);
+const MIN_KIT = 3;
+
+function montarKits(casos: Caso[], porTipo: boolean): KitPecas[] {
+  const grupos = new Map<string, { pecas: KitPecas["pecas"]; os: string[]; consumo: Map<string, { p: PecaOS; n: number }> }>();
+  for (const c of casos) {
+    const principais = c.pecas.filter((p) => !TIPOS_CONSUMO.has(p.t));
+    const itens = new Map<string, KitPecas["pecas"][number]>();
+    for (const p of principais) {
+      const k = porTipo ? p.t : p.c;
+      if (!itens.has(k)) itens.set(k, { codigo: porTipo ? "" : p.c, descricao: porTipo ? "" : p.d, tipo: p.t });
+    }
+    const chave = Array.from(itens.keys()).sort().join("|");
+    let g = grupos.get(chave);
+    if (!g) {
+      g = { pecas: Array.from(itens.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v), os: [], consumo: new Map() };
+      grupos.set(chave, g);
+    }
+    g.os.push(c.os);
+    for (const p of c.pecas) {
+      if (!TIPOS_CONSUMO.has(p.t)) continue;
+      const k = porTipo ? p.t : p.c;
+      const atual = g.consumo.get(k) ?? { p, n: 0 };
+      atual.n++;
+      g.consumo.set(k, atual);
+    }
+  }
+  return Array.from(grupos.values())
+    .filter((g) => g.os.length >= 2 || grupos.size === 1)
+    .sort((a, b) => b.os.length - a.os.length || b.pecas.length - a.pecas.length)
+    .slice(0, 5)
+    .map((g) => ({
+      pecas: g.pecas,
+      acompanham: Array.from(g.consumo.values())
+        .filter((x) => x.n >= Math.max(1, g.os.length / 2))
+        .map(({ p }) => ({ codigo: porTipo ? "" : p.c, descricao: porTipo ? "" : p.d, tipo: p.t })),
+      os: g.os.length,
+      percentual: casos.length ? (100 * g.os.length) / casos.length : 0,
+      exemplos: g.os.slice(0, 5),
+      porTipo,
+    }));
+}
 
 const MIN_CODIGO = 3;
 const MIN_TIPO = 15;
@@ -255,6 +314,24 @@ export function analisar(resposta: RespostaBanco, todosTermos: Termo[], modelo: 
     .slice(0, 5)
     .map(([k, os]) => ({ codigos: k.split("|") as [string, string], os }));
 
+  // conjuntos completos de peças (o "kit" que resolveu): mesmo modelo > mesma família > categoria (por tipo)
+  let kitNivel: NivelBusca | null = null;
+  let kits: KitPecas[] = [];
+  for (const nv of ["modelo", "familia"] as const) {
+    if (casados[nv].length >= MIN_KIT) {
+      kits = montarKits(casados[nv], false);
+      if (kits.length) {
+        kitNivel = nv;
+        break;
+      }
+    }
+  }
+  if (!kitNivel && casados.categoria.length >= MIN_KIT) {
+    kits = montarKits(casados.categoria, true);
+    if (kits.length) kitNivel = "categoria";
+  }
+  const kitBase = kitNivel ? casados[kitNivel].length : 0;
+
   // exemplos: prioriza o mesmo modelo, depois família, depois categoria
   const exemplos: ResultadoTriagem["exemplos"] = [];
   const jaFoi = new Set<string>();
@@ -278,6 +355,9 @@ export function analisar(resposta: RespostaBanco, todosTermos: Termo[], modelo: 
     tipos: tipos.slice(0, 10),
     pecas: pecas.slice(0, 12),
     combinacoes,
+    kits,
+    kitNivel,
+    kitBase,
     exemplos,
   };
 }

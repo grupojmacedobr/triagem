@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Check, ChevronDown, Copy, Eraser, Info, Layers, Link2, Loader2, Search, Sparkles, Wrench } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Copy, Eraser, Info, Layers, Link2, Loader2, PackageCheck, Search, Sparkles, Wrench } from "lucide-react";
 import { CATEGORIAS } from "@/lib/gspn";
-import type { ResultadoTriagem, NivelBusca, PecaSugerida } from "@/lib/triagem";
+import type { KitPecas, ResultadoTriagem, NivelBusca, PecaSugerida } from "@/lib/triagem";
 
 type SugestaoModelo = { modelo: string; familia: string; categoria: string; qtd_os: number; qtd_entregues: number; qtd_reparadas: number };
 type SugestaoDefeito = { texto: string; qtd: number };
@@ -375,6 +375,11 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
   const nada = r.baseTipo === 0;
   return (
     <div className="space-y-6">
+      {/* conjunto de peças mais provável — primeira coisa que o triador vê */}
+      {(r.kits ?? []).length > 0 && r.kitNivel && (
+        <KitSolucao kits={r.kits} nivel={r.kitNivel} base={r.kitBase} familia={r.familia} copiar={copiar} copiado={copiado} />
+      )}
+
       {/* como entendi */}
       <div className="rounded-xl border p-5" style={cartao}>
         <p className="text-sm font-semibold flex items-center gap-2 mb-3" style={{ color: "var(--ink)" }}>
@@ -616,6 +621,137 @@ function Numero({ rotulo, valor, de, texto }: { rotulo: string; valor: number; d
         {texto ?? num(valor)}
         {de !== undefined && <span className="text-xs font-normal" style={{ color: "var(--muted)" }}> de {num(de)}</span>}
       </p>
+    </div>
+  );
+}
+
+const NIVEL_KIT: Record<NivelBusca, string> = {
+  modelo: "deste mesmo modelo",
+  familia: "da mesma família",
+  categoria: "da mesma categoria",
+};
+
+function KitSolucao({
+  kits,
+  nivel,
+  base,
+  familia,
+  copiar,
+  copiado,
+}: {
+  kits: KitPecas[];
+  nivel: NivelBusca;
+  base: number;
+  familia: string;
+  copiar: (t: string) => void;
+  copiado: string | null;
+}) {
+  const [principal, ...outros] = kits;
+  const codigosPrincipal = [...principal.pecas, ...principal.acompanham].map((p) => p.codigo).filter(Boolean).join(" ");
+
+  const itens = (k: KitPecas, detalhe = false) =>
+    k.pecas.length === 0 ? (
+      <span className="text-sm font-medium" style={{ color: "var(--ink)" }}>
+        Reparo sem troca de peça (ajuste, limpeza ou atualização)
+      </span>
+    ) : (
+      k.pecas.map((p) => (
+        <span
+          key={p.codigo || p.tipo}
+          className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs"
+          style={{ borderColor: "var(--line)", background: "var(--surface)" }}
+          title={p.descricao || p.tipo}
+        >
+          {p.codigo && <span className="font-mono font-semibold" style={{ color: "var(--ink)" }}>{p.codigo}</span>}
+          <span style={{ color: p.codigo ? "var(--muted)" : "var(--ink)" }}>
+            {p.tipo}
+            {detalhe && p.descricao && <span className="block text-[10px] opacity-80 max-w-[240px] truncate">{p.descricao}</span>}
+          </span>
+        </span>
+      ))
+    );
+
+  return (
+    <div
+      className="rounded-xl border-2 overflow-hidden"
+      style={{ background: "var(--surface)", borderColor: "var(--accent2)", boxShadow: "0 0 30px var(--accent-glow)" }}
+    >
+      <div className="px-5 pt-5 pb-4">
+        <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--ink)" }}>
+          <PackageCheck size={18} style={{ color: "var(--accent2)" }} /> Conjunto de peças mais provável
+        </p>
+        <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+          Em {num(base)} OS parecidas {NIVEL_KIT[nivel]}
+          {nivel === "familia" && familia ? ` (${familia})` : ""}, entregues e reparadas, o conserto mais comum foi com
+          estas peças juntas:
+        </p>
+
+        <div className="mt-4 rounded-lg p-4 flex flex-col md:flex-row md:items-center gap-4" style={{ background: "var(--surface2)" }}>
+          <div className="shrink-0 text-center md:w-32">
+            <p className="text-3xl font-bold leading-none" style={{ color: "var(--accent2)" }}>
+              {pct(principal.percentual)}
+            </p>
+            <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
+              {num(principal.os)} de {num(base)} OS
+            </p>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {principal.pecas.length > 1 && (
+                <span className="text-[11px] font-semibold uppercase tracking-wide mr-1" style={{ color: "var(--muted)" }}>
+                  {principal.pecas.length} peças
+                </span>
+              )}
+              {itens(principal, true)}
+            </div>
+            {principal.acompanham.length > 0 && (
+              <p className="text-[11px] mt-2" style={{ color: "var(--muted)" }}>
+                Costuma ir junto:{" "}
+                {principal.acompanham.map((a) => (a.codigo ? `${a.codigo} (${a.tipo})` : a.tipo)).join(", ")}
+              </p>
+            )}
+            {principal.porTipo && (
+              <p className="text-[11px] mt-2 text-amber-500">
+                Ainda não há histórico deste modelo com esse defeito: o conjunto mostra os tipos de peça usados na categoria.
+              </p>
+            )}
+          </div>
+          {codigosPrincipal && (
+            <button
+              type="button"
+              onClick={() => copiar(codigosPrincipal)}
+              className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium hover:border-[var(--accent2)]"
+              style={{ borderColor: "var(--line)", color: "var(--ink)" }}
+            >
+              {copiado === codigosPrincipal ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+              Copiar códigos
+            </button>
+          )}
+        </div>
+      </div>
+
+      {outros.length > 0 && (
+        <div className="border-t px-5 py-4" style={{ borderColor: "var(--line)" }}>
+          <p className="text-xs font-medium mb-2.5" style={{ color: "var(--muted)" }}>
+            Outros conjuntos que também resolveram
+          </p>
+          <div className="space-y-2">
+            {outros.map((k, i) => (
+              <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                <div className="flex items-center gap-2 sm:w-44 shrink-0">
+                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--surface2)" }}>
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, k.percentual)}%`, background: "var(--accent)" }} />
+                  </div>
+                  <span className="text-xs w-20 text-right" style={{ color: "var(--ink)" }}>
+                    {num(k.os)} OS · <strong>{pct(k.percentual)}</strong>
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">{itens(k)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
