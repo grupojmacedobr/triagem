@@ -40,7 +40,7 @@ src/app/            páginas (login, dashboard, usuarios, trocar-senha) e APIs
 src/components/     peças da tela (menu, logo, formulários, popups)
 src/lib/            regras (cargos, cores, conexão com Supabase)
 src/middleware.ts   "porteiro": exige login e troca de senha
-supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03, 04, 05
+supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03, 04, 05, 06
 public/             imagens (logo do login, ícone)
 ```
 

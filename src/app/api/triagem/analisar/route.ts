@@ -63,13 +63,14 @@ export async function POST(request: Request) {
 
   const ids = resultado.exemplos.map((e) => e.os);
   if (ids.length) {
-    const { data: detalhes } = await supabase.from("gspn_os").select("os, modelo, defeito, reparacao").in("os", ids);
+    const { data: detalhes } = await supabase.from("gspn_os").select("os, modelo, defeito, reparacao, garantia").in("os", ids);
     const mapa = new Map((detalhes ?? []).map((d) => [d.os, d]));
     resultado.exemplos = resultado.exemplos.map((e) => ({
       ...e,
       modelo: mapa.get(e.os)?.modelo ?? "",
       defeito: mapa.get(e.os)?.defeito ?? "",
       reparacao: mapa.get(e.os)?.reparacao ?? "",
+      garantia: mapa.get(e.os)?.garantia ?? "",
     }));
   }
 

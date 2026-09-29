@@ -134,13 +134,15 @@ export type ResultadoTriagem = {
   tipos: { tipo: string; os: number; percentual: number }[];
   pecas: PecaSugerida[];
   combinacoes: { codigos: [string, string]; nomes: [string, string]; descricoes: [string, string]; os: number }[];
+  /** soluções com MAIS DE UMA peça (OS que usaram todas essas peças juntas) */
+  conjuntos: { pecas: PecaKit[]; os: number; percentual: number; baseOs: number }[];
   /** garantias usadas no filtro (LP / OW) */
   garantias?: string[];
   /** conjuntos completos de peças que resolveram OS parecidas (o mais comum primeiro) */
   kits: KitPecas[];
   kitNivel: NivelBusca | null;
   kitBase: number; // OS parecidas usadas para montar os conjuntos
-  exemplos: { os: string; modelo?: string; defeito?: string; reparacao?: string; pecas: PecaOS[]; nivel: NivelBusca }[];
+  exemplos: { os: string; modelo?: string; defeito?: string; reparacao?: string; garantia?: string; pecas: PecaOS[]; nivel: NivelBusca }[];
 };
 
 export type PecaKit = { codigo: string; descricao: string; nome: string; tipo: string };
@@ -203,8 +205,17 @@ function montarKits(casos: Caso[], porTipo: boolean): KitPecas[] {
 const MIN_CODIGO = 3;
 const MIN_TIPO = 15;
 const CORTE = 0.6;
+/** mínimo de OS parecidas antes de afrouxar o corte */
+const MIN_ALVO = 30;
 
-function selecionar(casos: Caso[], n: number, qtdTermos: number): Caso[] {
+/**
+ * Escolhe as OS mais parecidas pelo defeito.
+ * Nota de cada OS = soma do peso (IDF) das palavras do defeito que ela contém.
+ * Ficam as OS com nota >= 60% da melhor. Se isso der POUCAS OS (palavra rara a mais,
+ * ex.: "liga e desliga SOZINHA"), vai descendo para as próximas notas até juntar
+ * pelo menos `minimo` OS — assim uma palavra rara não descarta os casos principais.
+ */
+function selecionar(casos: Caso[], n: number, qtdTermos: number, minimo = MIN_ALVO): Caso[] {
   if (!casos.length || !qtdTermos) return [];
   const df = new Array(qtdTermos).fill(0);
   for (const c of casos) for (let i = 0; i < qtdTermos; i++) if (c.mascara & (1 << i)) df[i]++;
@@ -213,7 +224,20 @@ function selecionar(casos: Caso[], n: number, qtdTermos: number): Caso[] {
   const notas = casos.map(nota);
   const max = Math.max(...notas);
   if (max <= 0) return [];
-  return casos.filter((_, i) => notas[i] >= CORTE * max);
+  let corte = CORTE * max;
+  const niveis = Array.from(new Set(notas.filter((x) => x > 0 && x < corte))).sort((a, b) => b - a);
+  let qtd = notas.filter((x) => x >= corte).length;
+  for (const nv of niveis) {
+    if (qtd >= minimo) break;
+    corte = nv;
+    qtd = notas.filter((x) => x >= corte).length;
+  }
+  // mais parecidas primeiro (sort estável: empate mantém a ordem original)
+  return casos
+    .map((c, i) => ({ c, n: notas[i] }))
+    .filter((x) => x.n >= corte)
+    .sort((a, b) => b.n - a.n)
+    .map((x) => x.c);
 }
 
 function nomeNivel(n: number): NivelBusca {
@@ -345,6 +369,42 @@ export function analisar(
       };
     });
 
+  // soluções com mais de 1 peça: conjuntos (2 a 4 peças) que aparecem juntos nas OS parecidas
+  const conjuntos: ResultadoTriagem["conjuntos"] = [];
+  if (conjCod.length >= MIN_CODIGO) {
+    const cont = new Map<string, number>();
+    for (const c of conjCod) {
+      const cods = Array.from(new Set(c.pecas.map((p) => p.c))).sort();
+      if (cods.length < 2 || cods.length > 6) continue;
+      const total = 1 << cods.length;
+      for (let m = 1; m < total; m++) {
+        let bits = 0;
+        for (let x = m; x; x &= x - 1) bits++;
+        if (bits < 2 || bits > 4) continue;
+        const k = cods.filter((_, i) => m & (1 << i)).join("|");
+        cont.set(k, (cont.get(k) || 0) + 1);
+      }
+    }
+    let lista = Array.from(cont.entries()).filter(([, q]) => q >= 2);
+    // tira o conjunto menor quando existe um maior (que o contém) usado em quase as mesmas OS
+    lista = lista.filter(([k, q]) => {
+      const cods = k.split("|");
+      return !lista.some(([k2, q2]) => k2 !== k && k2.split("|").length > cods.length && cods.every((c) => k2.split("|").includes(c)) && q2 >= 0.8 * q);
+    });
+    lista.sort((a, b) => b[1] - a[1] || b[0].split("|").length - a[0].split("|").length);
+    for (const [k, q] of lista.slice(0, 5)) {
+      conjuntos.push({
+        pecas: k.split("|").map((cod) => {
+          const p = info.get(cod);
+          return { codigo: cod, descricao: p?.d || "", nome: p?.n || p?.t || "", tipo: p?.t || "" };
+        }),
+        os: q,
+        percentual: (100 * q) / conjCod.length,
+        baseOs: conjCod.length,
+      });
+    }
+  }
+
   // conjuntos completos de peças (o "kit" que resolveu): mesmo modelo > mesma família > categoria (por tipo)
   let kitNivel: NivelBusca | null = null;
   let kits: KitPecas[] = [];
@@ -363,20 +423,40 @@ export function analisar(
   }
   const kitBase = kitNivel ? casados[kitNivel].length : 0;
 
-  // exemplos: prioriza o mesmo modelo, depois família, depois categoria
+  // exemplos (até 10): com modelo informado, SEMPRE do mesmo modelo completo.
+  // Mostra primeiro as OS do conjunto mais comum (até 6), depois dos outros conjuntos,
+  // para o triador ver as soluções mais prováveis e também as alternativas.
   const exemplos: ResultadoTriagem["exemplos"] = [];
   const jaFoi = new Set<string>();
-  // com modelo informado, os exemplos são SEMPRE do mesmo modelo completo
   const niveisExemplo: NivelBusca[] = modelo ? ["modelo"] : ["modelo", "familia", "categoria"];
+  const ordemKit = (c: Caso) => {
+    const chave = Array.from(new Set(c.pecas.filter((p) => !TIPOS_CONSUMO.has(p.t)).map((p) => (kits[0]?.porTipo ? p.t : p.c)))).sort().join("|");
+    const i = kits.findIndex((k) => k.pecas.map((p) => (k.porTipo ? p.tipo : p.codigo)).sort().join("|") === chave);
+    return i < 0 ? 99 : i;
+  };
+  const LIMITE_POR_CONJUNTO = [6, 2, 1, 1, 1];
   for (const nv of niveisExemplo) {
-    for (const c of casados[nv]) {
-      if (modelo && c.nivel !== 2) continue;
-      if (exemplos.length >= 10) break;
-      if (jaFoi.has(c.os)) continue;
-      jaFoi.add(c.os);
-      exemplos.push({ os: c.os, pecas: c.pecas, nivel: nomeNivel(c.nivel) });
+    const candidatos = casados[nv].filter((c) => !modelo || c.nivel === 2);
+    const porKit = new Map<number, number>();
+    // 1ª passada: respeita o limite por conjunto; 2ª: completa até 10
+    for (const passada of [1, 2]) {
+      for (const c of candidatos) {
+        if (exemplos.length >= 10) break;
+        if (jaFoi.has(c.os)) continue;
+        const k = ordemKit(c);
+        if (passada === 1 && (porKit.get(k) || 0) >= (LIMITE_POR_CONJUNTO[k] ?? 1)) continue;
+        porKit.set(k, (porKit.get(k) || 0) + 1);
+        jaFoi.add(c.os);
+        exemplos.push({ os: c.os, pecas: c.pecas, nivel: nomeNivel(c.nivel) });
+      }
     }
   }
+  exemplos.sort((a, b) => {
+    const ca = casados.modelo.concat(casados.familia, casados.categoria);
+    const fa = ca.find((c) => c.os === a.os)!;
+    const fb = ca.find((c) => c.os === b.os)!;
+    return ordemKit(fa) - ordemKit(fb);
+  });
 
   return {
     termos: todosTermos.map((t) => ({ tipo: t.tipo, rotulo: t.rotulo, variantes: t.variantes })),
@@ -389,6 +469,7 @@ export function analisar(
     tipos: tipos.slice(0, 10),
     pecas: pecas.slice(0, 12),
     combinacoes,
+    conjuntos,
     kits,
     kitNivel,
     kitBase,

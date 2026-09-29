@@ -16,6 +16,21 @@ const ORIGEM: Record<PecaSugerida["origem"], { rotulo: string; cor: string; dica
 };
 
 const cartao = { background: "var(--surface)", borderColor: "var(--line)" } as const;
+
+type LinhaSugerida =
+  | { tipo: "peca"; p: PecaSugerida }
+  | { tipo: "conjunto"; c: ResultadoTriagem["conjuntos"][number] };
+
+/** Peças + soluções com mais de 1 peça, na ordem do percentual (tipo provável fica por último). */
+function linhasSugeridas(r: ResultadoTriagem): LinhaSugerida[] {
+  const linhas: LinhaSugerida[] = [
+    ...r.pecas.map((p) => ({ tipo: "peca" as const, p })),
+    ...(r.conjuntos ?? []).map((c) => ({ tipo: "conjunto" as const, c })),
+  ];
+  const grupo = (l: LinhaSugerida) => (l.tipo === "peca" && l.p.origem === "tipo-provavel" ? 1 : 0);
+  const perc = (l: LinhaSugerida) => (l.tipo === "peca" ? l.p.percentual : l.c.percentual);
+  return linhas.sort((a, b) => grupo(a) - grupo(b) || perc(b) - perc(a)).slice(0, 15);
+}
 const pct = (v: number) => `${v.toFixed(v >= 10 ? 0 : 1).replace(".", ",")}%`;
 const num = (v: number) => v.toLocaleString("pt-BR");
 const campoClasse =
@@ -467,8 +482,8 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
         <p className="text-[11px] mt-3 flex items-start gap-1.5" style={{ color: "var(--muted)" }}>
           <Info size={12} className="shrink-0 mt-0.5" />
           <span>
-            Entram no cálculo só OS com status <strong>Produto Entregue</strong> e reparo realizado (com peça ou código de
-            reparo A..) — aparelhos devolvidos sem conserto ficam de fora.{" "}
+            Entram no cálculo só OS com status <strong>Produto Entregue</strong> e peça lançada (ou código de reparo A..).
+            Ficam de fora os códigos de reparo <strong>X</strong> (cancelado, orçamento recusado, sem defeito).{" "}
             {r.garantias && r.garantias.length === 1 && (
               <strong style={{ color: "var(--ink)" }}>
                 Somente OS {r.garantias[0] === "LP" ? "em garantia (LP)" : "fora de garantia (OW)"}.{" "}
@@ -492,6 +507,9 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
             <div className="px-5 py-4 border-b" style={{ borderColor: "var(--line)" }}>
               <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--ink)" }}>
                 <Wrench size={16} style={{ color: "var(--accent2)" }} /> Peças sugeridas (mais prováveis primeiro)
+                <span className="text-[11px] font-normal ml-1" style={{ color: "var(--muted)" }}>
+                  · inclui as soluções com mais de uma peça
+                </span>
               </p>
             </div>
             {r.pecas.length === 0 ? (
@@ -514,8 +532,46 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
                     </tr>
                   </thead>
                   <tbody>
-                    {r.pecas.map((p, i) => (
-                      <tr key={p.codigo} className="border-t" style={{ borderColor: "var(--line)" }}>
+                    {linhasSugeridas(r).map((l, i) =>
+                      l.tipo === "conjunto" ? (
+                        <tr key={"c" + i} className="border-t" style={{ borderColor: "var(--line)", background: "var(--surface2)" }}>
+                          <td className="px-4 py-3 font-semibold" style={{ color: i < 3 ? "var(--accent2)" : "var(--muted)" }}>
+                            {i + 1}
+                          </td>
+                          <td className="px-4 py-3" colSpan={2}>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {l.c.pecas.map((p, j) => (
+                                <span key={p.codigo} className="inline-flex items-center gap-1.5">
+                                  {j > 0 && <span style={{ color: "var(--muted)" }}>+</span>}
+                                  <PecaChip codigo={p.codigo} nome={p.nome} descricao={p.descricao} copiar={copiar} copiado={copiado} />
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--surface)" }}>
+                                <div className="h-full rounded-full" style={{ width: `${Math.min(100, l.c.percentual)}%`, background: "#a855f7" }} />
+                              </div>
+                              <span className="text-xs w-32 text-right whitespace-nowrap" style={{ color: "var(--ink)" }}>
+                                {num(l.c.os)} de {num(l.c.baseOs)} · <strong>{pct(l.c.percentual)}</strong>
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              title="OS parecidas que usaram TODAS estas peças juntas"
+                              className="text-[11px] font-medium rounded-full px-2 py-0.5 cursor-help whitespace-nowrap"
+                              style={{ color: "#a855f7", background: "var(--surface)" }}
+                            >
+                              Conjunto · {l.c.pecas.length} peças
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs" style={{ color: "var(--muted)" }}>—</td>
+                        </tr>
+                      ) : (
+                        (({ p }) => (
+                      <tr key={p.codigo + i} className="border-t" style={{ borderColor: "var(--line)" }}>
                         <td className="px-4 py-3 font-semibold" style={{ color: i < 3 ? "var(--accent2)" : "var(--muted)" }}>
                           {i + 1}
                         </td>
@@ -546,7 +602,7 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
                             <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--surface2)" }}>
                               <div className="h-full rounded-full" style={{ width: `${Math.min(100, p.percentual)}%`, background: ORIGEM[p.origem].cor }} />
                             </div>
-                            <span className="text-xs w-24 text-right" style={{ color: "var(--ink)" }}>
+                            <span className="text-xs w-32 text-right whitespace-nowrap" style={{ color: "var(--ink)" }}>
                               {num(p.osComPeca)} de {num(p.baseOs)} · <strong>{pct(p.percentual)}</strong>
                             </span>
                           </div>
@@ -564,7 +620,9 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
                           {num(p.usoHistorico)} OS
                         </td>
                       </tr>
-                    ))}
+                                            ))(l)
+                      ),
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -644,6 +702,7 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
                 <thead>
                   <tr className="text-left text-xs" style={{ background: "var(--surface2)", color: "var(--muted)" }}>
                     <th className="px-4 py-2.5 font-medium">OS</th>
+                    <th className="px-4 py-2.5 font-medium" title="LP = em garantia · OW = fora de garantia">Garantia</th>
                     <th className="px-4 py-2.5 font-medium">Modelo</th>
                     <th className="px-4 py-2.5 font-medium">Defeito</th>
                     <th className="px-4 py-2.5 font-medium">Reparo</th>
@@ -654,6 +713,9 @@ function Resultado({ r, copiar, copiado }: { r: ResultadoTriagem; copiar: (t: st
                   {r.exemplos.map((e) => (
                     <tr key={e.os} className="border-t align-top" style={{ borderColor: "var(--line)" }}>
                       <td className="px-4 py-2.5 font-mono text-xs" style={{ color: "var(--muted)" }}>{e.os}</td>
+                      <td className="px-4 py-2.5">
+                        <SeloGarantia g={e.garantia} />
+                      </td>
                       <td className="px-4 py-2.5 font-mono text-xs" style={{ color: "var(--ink)" }}>
                         {e.modelo}
                         <p className="font-sans text-[10px]" style={{ color: "var(--muted)" }}>{NOME_NIVEL[e.nivel]}</p>
@@ -884,6 +946,26 @@ function PecaChip({
           {nome}
         </span>
       )}
+    </span>
+  );
+}
+
+/** LP (em garantia) / OW (fora de garantia) */
+function SeloGarantia({ g }: { g?: string }) {
+  const v = (g || "").toUpperCase();
+  if (v !== "LP" && v !== "OW") return <span className="text-xs" style={{ color: "var(--muted)" }}>{v || "—"}</span>;
+  const lp = v === "LP";
+  return (
+    <span
+      title={lp ? "Em garantia" : "Fora de garantia"}
+      className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap"
+      style={
+        lp
+          ? { color: "#22c55e", background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.35)" }
+          : { color: "#f59e0b", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.35)" }
+      }
+    >
+      {v} · {lp ? "Garantia" : "Fora"}
     </span>
   );
 }

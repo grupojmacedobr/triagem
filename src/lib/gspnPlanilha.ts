@@ -180,9 +180,9 @@ export function linhaParaOS(linha: unknown[], mapa: MapaColunas): RegistroOS | n
     defeito_busca: textoBusca(defeito),
     reparacao: texto(v("reparacao")),
     codigo_reparo: codigoReparo,
-    // "Produto Entregue" também inclui aparelho devolvido SEM conserto (recusa de
-    // orçamento, falta de retorno). Reparado = teve peça OU código de reparo A..
-    reparado: entregue && (pecas.length > 0 || /^A/.test(codigoReparo || "")),
+    // Reparado = Produto Entregue, código de reparo NÃO começa com X (X = saiu sem conserto:
+    // cancelado, recusado, sem defeito...) e teve peça lançada ou código de reparo A..
+    reparado: entregue && !/^X/.test(codigoReparo || "") && (pecas.length > 0 || /^A/.test(codigoReparo || "")),
     pecas,
     qtd_pecas: pecas.length,
   };
