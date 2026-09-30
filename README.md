@@ -32,6 +32,9 @@ Categorias: **Configurações > Cadastro Categorias**. Ordem de decisão: regra 
 coluna BH do GSPN > aprendido (mesmo modelo / família / começo do modelo) > Outros.
 Dicionário de sinônimos: `src/lib/triagem.ts` (lista CONCEITOS).
 Tradução dos nomes das peças: `src/lib/pecas.ts` (lista REGRAS, feita com todas as descrições da base).
+Defeito padrão: a Triagem usa o código de sintoma IRIS (coluna AY) para juntar todas as OS do mesmo defeito
+(tabela `sintomas_iris`) e mostra o guia do triador por tipo de peça (tabela `guia_pecas`). Níveis: modelo >
+família > série (mesma linha, outras polegadas) > categoria, com selo de confiança da amostra.
 Filtro de garantia na Triagem: coluna AL (LP = em garantia, OW = fora de garantia).
 
 ## Estrutura
@@ -40,7 +43,7 @@ src/app/            páginas (login, dashboard, usuarios, trocar-senha) e APIs
 src/components/     peças da tela (menu, logo, formulários, popups)
 src/lib/            regras (cargos, cores, conexão com Supabase)
 src/middleware.ts   "porteiro": exige login e troca de senha
-supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03, 04, 05, 06
+supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03, 04, 05, 06, 07
 public/             imagens (logo do login, ícone)
 ```
 

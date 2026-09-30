@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { familiaModelo } from "@/lib/gspn";
-import { analisar, extrairTermos, gruposParaBanco, termosDeBusca, type RespostaBanco } from "@/lib/triagem";
+import { analisar, extrairTermos, gruposParaBanco, serieModelo, termosDeBusca, type GuiaPeca, type RespostaBanco } from "@/lib/triagem";
 
 export const maxDuration = 30;
 
@@ -43,21 +43,52 @@ export async function POST(request: Request) {
     );
   }
 
+  const familia = familiaModelo(modelo);
   const { data, error } = await supabase.rpc("triagem_buscar", {
     p_categorias: categorias,
     p_modelo: modelo,
-    p_familia: familiaModelo(modelo),
+    p_familia: familia,
     p_grupos: gruposParaBanco(termos),
-    ...(filtroGarantia ? { p_garantias: filtroGarantia } : {}),
+    p_garantias: filtroGarantia,
+    p_serie: familia ? serieModelo(familia) : null,
   });
   if (error) {
     return NextResponse.json(
-      { error: `Erro na busca (${error.message}). Confira se os SQLs 02, 03 e 05 já foram rodados no Supabase.` },
+      { error: `Erro na busca (${error.message}). Confira se o SQL 07 já foi rodado no Supabase.` },
       { status: 500 }
     );
   }
 
   const resultado = analisar(data as RespostaBanco, termos, modelo, undefined, categorias.length === 1 ? categorias[0] : "");
+
+  // nomes dos defeitos padrão (IRIS) e guia do triador
+  const codigos = Array.from(new Set([...resultado.defeito.codigos.map((c) => c.codigo), ...resultado.perfil.map((p) => p.codigo)])).filter(Boolean);
+  const grupos = Array.from(
+    new Set([
+      ...resultado.kits.flatMap((k) => k.pecas.map((p) => p.tipo)),
+      ...resultado.pecas.map((p) => p.tipo),
+      ...resultado.conjuntos.flatMap((c) => c.pecas.map((p) => p.tipo)),
+      ...(resultado.apoio?.kits ?? []).flatMap((k) => k.pecas.map((p) => p.tipo)),
+    ]),
+  );
+  const [sint, aprend, guia] = await Promise.all([
+    codigos.length ? supabase.from("sintomas_iris").select("categoria, codigo, nome, guia").in("codigo", codigos).in("categoria", categorias) : { data: [] },
+    codigos.length ? supabase.from("sintomas_aprendidos").select("categoria, codigo, nome_sugerido").in("codigo", codigos).in("categoria", categorias) : { data: [] },
+    grupos.length ? supabase.from("guia_pecas").select("categoria, grupo, o_que_e, por_que, como_confirmar").in("grupo", grupos).in("categoria", [...categorias, "*"]) : { data: [] },
+  ]);
+  const ordemCat = (c: string) => (categorias.indexOf(c) < 0 ? 99 : categorias.indexOf(c));
+  const nomeIris = new Map<string, { nome: string; guia: string | null }>();
+  for (const r of [...(sint.data ?? [])].sort((a, b) => ordemCat(a.categoria) - ordemCat(b.categoria))) {
+    if (!nomeIris.has(r.codigo)) nomeIris.set(r.codigo, { nome: r.nome, guia: r.guia });
+  }
+  for (const r of aprend.data ?? []) if (!nomeIris.has(r.codigo) && r.nome_sugerido) nomeIris.set(r.codigo, { nome: r.nome_sugerido, guia: null });
+  resultado.defeito.codigos = resultado.defeito.codigos.map((c) => ({ ...c, nome: nomeIris.get(c.codigo)?.nome, guia: nomeIris.get(c.codigo)?.guia }));
+  resultado.perfil = resultado.perfil.map((p) => ({ ...p, nome: p.codigo ? nomeIris.get(p.codigo)?.nome : "Sem código" }));
+  const mapaGuia: Record<string, GuiaPeca> = {};
+  for (const r of [...(guia.data ?? [])].sort((a, b) => (a.categoria === "*" ? 1 : 0) - (b.categoria === "*" ? 1 : 0) || ordemCat(a.categoria) - ordemCat(b.categoria))) {
+    if (!mapaGuia[r.grupo]) mapaGuia[r.grupo] = { o_que_e: r.o_que_e, por_que: r.por_que, como_confirmar: r.como_confirmar };
+  }
+  resultado.guia = mapaGuia;
 
   resultado.garantias = filtroGarantia ?? ["LP", "OW"];
 
