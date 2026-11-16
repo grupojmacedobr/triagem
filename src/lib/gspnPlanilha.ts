@@ -72,6 +72,36 @@ export function mapearColunas(cabecalho: unknown[]): MapaColunas {
   return { campos, pecas, avisos };
 }
 
+/**
+ * Mapa SÓ pelo nome do cabeçalho (nunca cai na letra padrão). Usado na sincronização com o robô,
+ * onde a base chega com só as colunas pedidas (as letras não valem). Coluna que faltar = -1 (vazio).
+ */
+export function mapearSomentePorNome(cabecalho: unknown[]): MapaColunas {
+  const h = cabecalho.map(normCabecalho);
+  const avisos: string[] = [];
+  const campos: Record<string, number> = {};
+  for (const [campo, def] of Object.entries(CAMPOS)) {
+    const i = def.nomes.map((n) => h.indexOf(n)).find((x) => x >= 0) ?? -1;
+    if (i < 0 && def.obrigatorio) avisos.push(`Coluna "${def.nomes[0]}" não encontrada.`);
+    campos[campo] = i;
+  }
+  const pecas = PECAS_LETRAS.map((_, k) => {
+    const suf = String(k + 1).padStart(2, "0");
+    return { cod: h.indexOf("codigo da peca" + suf), desc: h.indexOf("pecas description " + suf), qtd: h.indexOf("quantidade" + suf) };
+  });
+  return { campos, pecas, avisos };
+}
+
+/** Nomes (normalizados) de todas as colunas que a Triagem usa — para pedir só elas ao robô. */
+export function colunasUsadasNormalizadas(): string[] {
+  const nomes = Object.values(CAMPOS).flatMap((d) => d.nomes);
+  for (let k = 1; k <= 10; k++) {
+    const suf = String(k).padStart(2, "0");
+    nomes.push("codigo da peca" + suf, "pecas description " + suf, "quantidade" + suf);
+  }
+  return nomes;
+}
+
 function texto(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   const s = String(v).replace(/ /g, " ").trim();
@@ -81,6 +111,10 @@ function texto(v: unknown): string | null {
 function data(v: unknown): string | null {
   if (v instanceof Date && !isNaN(v.getTime())) {
     return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
+  }
+  // data em número do Excel (dias desde 30/12/1899)
+  if (typeof v === "number" && v > 20000 && v < 80000) {
+    return new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10);
   }
   const s = texto(v);
   if (!s) return null;

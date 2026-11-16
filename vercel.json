@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/gspn/sincronizar", "schedule": "0 9 * * *" }
+  ]
+}

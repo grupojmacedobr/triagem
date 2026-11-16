@@ -31,7 +31,9 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   // "Esqueci minha senha" é chamado sem ninguém logado
-  const isPublic = path === "/login" || path === "/api/auth/solicitar-reset-senha";
+  // A sincronização diária (Vercel Cron) chega sem login: a própria rota confere a senha CRON_SECRET
+  const isPublic =
+    path === "/login" || path === "/api/auth/solicitar-reset-senha" || path === "/api/gspn/sincronizar";
   const isTrocarSenha = path === "/trocar-senha";
 
   if (!user && !isPublic) {

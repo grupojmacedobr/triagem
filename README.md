@@ -37,19 +37,35 @@ Defeito padrão: a Triagem usa o código de sintoma IRIS (coluna AY) para juntar
 família > série (mesma linha, outras polegadas) > categoria, com selo de confiança da amostra.
 Filtro de garantia na Triagem: coluna AL (LP = em garantia, OW = fora de garantia).
 
+## Atualização automática pelo Robô GSPN (SQL 08)
+O robô do PC salva a base de OS de cada unidade no OneDrive (`AUTOMAÇÃO\ROBÔ - <ASC> - <UNIDADE>\BASE DE DADOS`)
+e o robô do **Sistema de Inventário** envia essa base para o Inventário, que a entrega pela rota
+`https://jm-inventario.vercel.app/api/integracao/base-os` (com chave). A Triagem busca de lá:
+- **todo dia às 6h** sozinha (Vercel Cron, `vercel.json`), e no botão **Sincronizar agora** (Configurações > Base GSPN);
+- 1ª vez de cada unidade = base inteira; depois só as OS que mudaram (Change Date dos últimos 3 dias);
+  1 vez por semana relê a base inteira. OS iguais não são regravadas;
+- unidades novas do robô entram sozinhas. A importação manual de planilha continua funcionando.
+- Código: `src/lib/sincronizarRobo.ts` · rota `src/app/api/gspn/sincronizar` · tela `src/components/SincronizacaoRobo.tsx`.
+
+Variáveis na Vercel (projeto triagem):
+- `INVENTARIO_BASE_OS_CHAVE` = a mesma chave da `INTEGRACAO_BASE_OS_CHAVE` do Inventário (arquivo `CHAVE_INTEGRACAO_BASE_OS.txt` na Área de Trabalho)
+- `CRON_SECRET` = senha da atualização diária (gerar com `GERAR SENHA CRON.bat`)
+- (opcional) `INVENTARIO_BASE_OS_URL` se o endereço do Inventário mudar
+
 ## Estrutura
 ```
 src/app/            páginas (login, dashboard, usuarios, trocar-senha) e APIs
 src/components/     peças da tela (menu, logo, formulários, popups)
 src/lib/            regras (cargos, cores, conexão com Supabase)
 src/middleware.ts   "porteiro": exige login e troca de senha
-supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03, 04, 05, 06, 07
+supabase/           SQLs para rodar no Supabase (SQL Editor), em ordem: 01, 02, 03, 04, 05, 06, 07, 08
 public/             imagens (logo do login, ícone)
 ```
 
 ## Configuração na Vercel
 - Framework Preset: **Next.js**
 - Environment Variable obrigatória: `SUPABASE_SERVICE_ROLE_KEY` (chave secreta do Supabase)
+- Robô GSPN: `INVENTARIO_BASE_OS_CHAVE` e `CRON_SECRET` (ver acima)
 
 ## Login no Supabase
 Cada usuário vira `nome.sobrenome@jmacedo.internal` no Supabase Auth.

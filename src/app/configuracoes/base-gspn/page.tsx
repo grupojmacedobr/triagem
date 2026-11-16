@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import ImportarGspn from "@/components/ImportarGspn";
+import SincronizacaoRobo from "@/components/SincronizacaoRobo";
 import { carregarPerfil } from "@/lib/perfil";
 import { createClient } from "@/lib/supabase/server";
 import { podeImportarBase } from "@/lib/usuarios";
@@ -66,6 +67,8 @@ export default async function BaseGspnPage() {
           </div>
         ))}
       </div>
+
+      {pode && <SincronizacaoRobo />}
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-6 items-start">
         {pode ? (
